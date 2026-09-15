@@ -1,19 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Connected ventilation gateway">
   <rect width="512" height="512" rx="112" fill="#239a72"/>
 
-  <rect x="64" y="124" width="384" height="328" rx="68" fill="#177a5b" stroke="#fff" stroke-width="22"/>
+  <rect x="80" y="142" width="352" height="304" rx="54" fill="#177a5b" stroke="#fff" stroke-width="20"/>
 
-  <g fill="#fff">
-    <path id="fan-blade" d="M243 265c-25-27-20-69 35-92 15 43 3 78-12 99z"/>
-    <use href="#fan-blade" transform="rotate(90 256 288)"/>
-    <use href="#fan-blade" transform="rotate(180 256 288)"/>
-    <use href="#fan-blade" transform="rotate(270 256 288)"/>
-    <circle cx="256" cy="288" r="29"/>
+  <g fill="#fff" transform="translate(256 294) scale(.88) translate(-256 -294)">
+    <path id="fan-blade" d="M243 271c-25-27-20-69 35-92 15 43 3 78-12 99z"/>
+    <use href="#fan-blade" transform="rotate(90 256 294)"/>
+    <use href="#fan-blade" transform="rotate(180 256 294)"/>
+    <use href="#fan-blade" transform="rotate(270 256 294)"/>
+    <circle cx="256" cy="294" r="29"/>
   </g>
-  <circle cx="256" cy="288" r="10" fill="#177a5b"/>
+  <circle cx="256" cy="294" r="9" fill="#177a5b"/>
 
-  <g fill="none" stroke="#fff" stroke-width="12" stroke-linecap="round">
-    <path d="M380 98a94 94 0 0 1 94 94"/>
-    <path d="M380 72a120 120 0 0 1 120 120"/>
+  <circle cx="378" cy="196" r="8" fill="#fff"/>
+  <g fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round">
+    <path d="M378 118a78 78 0 0 1 78 78"/>
+    <path d="M378 94a102 102 0 0 1 102 102"/>
+    <path d="M378 70a126 126 0 0 1 126 126"/>
   </g>
 </svg>
