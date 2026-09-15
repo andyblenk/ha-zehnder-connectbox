@@ -5,6 +5,10 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Refine the integration icon with centered ventilation and wireless symbols.
+
 ### Fixed
 
 - Keep periodically refreshed ventilation-unit telemetry available across the
