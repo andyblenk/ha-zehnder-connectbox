@@ -4,6 +4,14 @@ These screenshots show the current Zehnder ConnectBox integration in Home
 Assistant. Labels and layout may differ slightly between Home Assistant
 versions and languages.
 
+## Automatic discovery
+
+Home Assistant searches the local network for available ConnectBoxes and
+offers each discovered gateway for confirmation. The address can also be
+entered manually when discovery cannot cross a network boundary.
+
+![Automatically discovered ConnectBox](images/discovery.png)
+
 ## Local pairing
 
 Adding the integration starts a local pairing request. Briefly press the
@@ -32,6 +40,15 @@ mode. Connected ventilation units are listed below it.
 The confirmed ComfoSpot 50 profile exposes ventilation level control,
 temperatures, fan speeds, filter information, radio signal strength, faults,
 and the filter reset action.
+
+### Ventilation control
+
+The fan entity supports power control, fan speed from 25–100%, and the named
+presets Level 1 through Level 4.
+
+<img src="images/ventilation-dialog.png" alt="Ventilation level control with presets in Home Assistant" width="430">
+
+### Entity overview
 
 <img src="images/comfospot50-entities.png" alt="ComfoSpot 50 entities in Home Assistant" width="430">
 

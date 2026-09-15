@@ -86,6 +86,12 @@ information when reported by the gateway.
 | Signal strength | Diagnostic sensor | Radio signal strength between the unit and ConnectBox |
 | Reset filter timer | Configuration button | Resets the filter counter after filter maintenance; currently verified for ComfoSpot 50 |
 
+The ventilation fan entity provides Home Assistant's standard power and speed
+controls. Levels 1–4 can be selected directly as named presets or set as
+25–100% fan speed.
+
+<img src="docs/images/ventilation-dialog.png" alt="Ventilation level control with presets in Home Assistant" width="430">
+
 Firmware and valid hardware versions are displayed in the ventilation unit's
 device information. Optional values are shown only when the connected product
 actually reports them.

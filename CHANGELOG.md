@@ -5,6 +5,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-15
+
 ### Changed
 
 - Refine the integration icon with centered ventilation and wireless symbols.
@@ -35,3 +37,6 @@ project follows [Semantic Versioning](https://semver.org/).
   device does not report a dedicated warning flag.
 - ComfoSpot 50 filter-timer reset button with gateway acknowledgements, state
   readback, and documented dashboard confirmation.
+
+[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.0
