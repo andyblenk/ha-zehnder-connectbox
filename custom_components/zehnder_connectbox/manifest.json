@@ -1,0 +1,15 @@
+{
+  "domain": "zehnder_connectbox",
+  "name": "Zehnder ConnectBox",
+  "codeowners": ["@andyblenk"],
+  "config_flow": true,
+  "dependencies": ["network"],
+  "documentation": "https://github.com/andyblenk/ha-zehnder-connectbox",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/andyblenk/ha-zehnder-connectbox/issues",
+  "loggers": ["tlslite"],
+  "requirements": ["tlslite-ng==0.8.2"],
+  "version": "0.1.0"
+}
+

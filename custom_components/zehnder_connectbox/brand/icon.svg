@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ventilation gateway">
+  <rect width="512" height="512" rx="112" fill="#25657a"/>
+  <circle cx="256" cy="256" r="52" fill="none" stroke="#fff" stroke-width="22"/>
+  <path d="M256 204c-6-72 25-115 81-126 24 62 7 112-48 148" fill="#fff"/>
+  <path d="M301 282c66 30 87 79 68 133-65-8-102-46-102-112" fill="#fff"/>
+  <path d="M211 282c-60 42-112 34-148-10 41-52 93-64 149-30" fill="#fff"/>
+  <path d="M128 116h74M91 116a18 18 0 1 0 36 0 18 18 0 1 0-36 0M384 396h38M423 396a18 18 0 1 0 36 0 18 18 0 1 0-36 0" fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round"/>
+</svg>

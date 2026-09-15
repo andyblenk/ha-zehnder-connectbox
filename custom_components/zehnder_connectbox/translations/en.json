@@ -1,0 +1,112 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "This ConnectBox is already configured.",
+      "discovery_failed": "The selected ConnectBox is no longer available.",
+      "pairing_failed": "Pairing with the ConnectBox did not complete."
+    },
+    "error": {
+      "cannot_connect": "No ConnectBox responded at this address.",
+      "pairing_failed": "Pairing did not complete. Try again and press the ConnectBox access-key button while its indicator is blinking.",
+      "wrong_gateway": "The address belongs to a different ConnectBox."
+    },
+    "progress": {
+      "pairing": "Pairing is in progress. Briefly press the access-key button on the ConnectBox while its indicator is blinking."
+    },
+    "step": {
+      "user": {
+        "menu_options": {
+          "manual": "Enter an address manually",
+          "retry": "Search again"
+        },
+        "title": "Find a ConnectBox"
+      },
+      "select": {
+        "data": {
+          "discovered_gateway": "ConnectBox"
+        },
+        "description": "Select the ConnectBox to add.",
+        "title": "Select a ConnectBox"
+      },
+      "manual": {
+        "data": {
+          "host": "IP address or hostname"
+        },
+        "description": "Enter an address on the same local network.",
+        "title": "Connect manually"
+      },
+      "confirm": {
+        "description": "Add {name} at {host}? The next step pairs Home Assistant locally with this gateway.",
+        "title": "Confirm ConnectBox"
+      },
+      "pair": {
+        "title": "Pair the ConnectBox"
+      },
+      "pair_failed": {
+        "description": "Select Submit to try pairing again.",
+        "title": "Pairing was not completed"
+      },
+      "reconfigure": {
+        "data": {
+          "host": "IP address or hostname"
+        },
+        "description": "Update the local address of this ConnectBox. Its identity and trusted certificate must remain unchanged.",
+        "title": "Reconfigure ConnectBox"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "fault": {
+        "name": "Fault"
+      },
+      "filter_warning": {
+        "name": "Filter warning"
+      }
+    },
+    "fan": {
+      "ventilation": {
+        "name": "Ventilation"
+      }
+    },
+    "select": {
+      "operating_mode": {
+        "name": "Operating mode",
+        "state": {
+          "antifreeze": "Antifreeze",
+          "automatic": "Automatic",
+          "manual": "Manual",
+          "off": "Off"
+        }
+      }
+    },
+    "sensor": {
+      "exhaust_fan_speed": {
+        "name": "Exhaust fan speed"
+      },
+      "extract_air_temperature": {
+        "name": "Extract air temperature"
+      },
+      "filter_maximum": {
+        "name": "Maximum filter runtime"
+      },
+      "filter_remaining": {
+        "name": "Remaining filter runtime"
+      },
+      "filter_runtime": {
+        "name": "Filter runtime"
+      },
+      "incoming_air_temperature": {
+        "name": "Incoming air temperature"
+      },
+      "supply_fan_speed": {
+        "name": "Supply fan speed"
+      }
+    },
+    "switch": {
+      "ventilation": {
+        "name": "Ventilation"
+      }
+    }
+  }
+}

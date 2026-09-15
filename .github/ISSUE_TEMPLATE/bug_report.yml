@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem with the integration.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a problem. Before submitting, enable debug logging, reproduce the issue, and download the integration diagnostics. Review every attachment for private information.
+  - type: input
+    id: integration_version
+    attributes:
+      label: Integration version
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: home_assistant_version
+    attributes:
+      label: Home Assistant version
+      placeholder: 2026.9.0
+    validations:
+      required: true
+  - type: dropdown
+    id: device
+    attributes:
+      label: Ventilation unit
+      options:
+        - ComfoSpot 50
+        - ComfoAir 70
+        - Other or unknown
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem description
+      description: Describe what happened, what you expected, and how to reproduce it.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics and logs
+      description: Attach sanitized diagnostics and the relevant log section. Never include pairing data, UUIDs, certificate fingerprints, IP addresses, serial numbers, or account details.
+
