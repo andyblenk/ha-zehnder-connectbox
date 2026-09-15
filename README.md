@@ -48,6 +48,8 @@ welcome. Please open a
 - Extract-air and incoming-air temperatures
 - Supply- and exhaust-fan speeds
 - Filter runtime, remaining runtime, maximum runtime, and filter warning
+- Two-step ComfoSpot 50 filter-timer reset with gateway acknowledgements and
+  state readback
 - Device fault indicator
 - Local polling, automatic reconnect, and sanitized diagnostics
 
@@ -107,11 +109,44 @@ the integration does not create room entities.
 | Supported ventilation unit | Air temperature sensors | Extract and incoming air |
 | Supported ventilation unit | Fan-speed sensors | Supply and exhaust RPM |
 | Supported ventilation unit | Filter sensors | Runtime, remaining runtime, maximum runtime, and warning |
+| ComfoSpot 50 | Reset filter timer button | Acknowledges filter replacement and resets the current runtime to zero |
 | Supported ventilation unit | Fault binary sensor | Reports a currently signalled unit fault |
 | Supported ventilation unit | Device diagnostics | Firmware, hardware, and radio signal strength |
 
-Filter reset, firmware management, installer functions, and an unverified
-temporary boost mode are deliberately not exposed.
+Firmware management, installer functions, and an unverified temporary boost
+mode are deliberately not exposed.
+
+### Filter timer reset
+
+Only use **Reset filter timer** after the filters have actually been cleaned or
+replaced. The integration follows the sequence used by the official client: it
+first acknowledges the filter-replacement alarm, waits for the ConnectBox to
+confirm that write, resets the current filter runtime to zero, and refreshes
+the device values.
+
+Home Assistant button entities do not carry an integration-defined confirmation
+dialog. To protect the action on a dashboard, add the button entity with a
+confirmation action (replace the example entity ID with your own):
+
+```yaml
+type: button
+entity: button.comfospot_50_reset_filter_timer
+name: Reset filter timer
+icon: mdi:air-filter
+tap_action:
+  action: perform-action
+  perform_action: button.press
+  target:
+    entity_id: button.comfospot_50_reset_filter_timer
+  confirmation:
+    title: Reset filter timer?
+    text: Confirm only after the filters have been cleaned or replaced.
+    confirm_text: Reset
+    dismiss_text: Cancel
+```
+
+The confirmation is a dashboard feature. Direct presses from the device page,
+Developer Tools, scripts, or automations execute the reset without that dialog.
 
 ## Screenshots
 

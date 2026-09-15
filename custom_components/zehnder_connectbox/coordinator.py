@@ -23,7 +23,7 @@ from .const import (
     PROPERTY_REFRESH_INTERVAL,
 )
 from .models import GatewaySnapshot, RunMode
-from .profiles import format_version, product_name
+from .profiles import FILTER_RUNTIME, format_version, product_name
 from .protocol import ProtocolError
 from .transport import CertificateMismatchError, TransportError
 
@@ -105,6 +105,32 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         """Enter standby or restore the last verified active mode."""
         mode = self._last_non_off_mode if enabled else RunMode.OFF
         await self.async_set_mode(mode)
+
+    async def async_reset_filter_timer(self, device_id: int) -> None:
+        """Reset a supported unit's filter timer and refresh its telemetry."""
+        data = self.data.find_device(device_id) if self.data is not None else None
+        if data is None:
+            raise ProtocolError("device is no longer available")
+        device = data[1]
+        property_value = next(
+            (
+                value
+                for value in device.properties
+                if value.key.value_identity == FILTER_RUNTIME.key
+                and value.value is not None
+                and len(value.value) == FILTER_RUNTIME.length
+            ),
+            None,
+        )
+        if property_value is None:
+            raise ProtocolError("filter runtime is not available for this device")
+
+        async with self._io_lock:
+            snapshot = await self.hass.async_add_executor_job(
+                self.client.reset_filter_timer, device_id, property_value.key
+            )
+        self._last_property_refresh = time.monotonic()
+        self._accept_command_snapshot(snapshot)
 
     async def async_close(self) -> None:
         """Close the client outside Home Assistant's event loop."""

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum
 from uuid import UUID
 
@@ -140,6 +140,7 @@ class Room:
     target_level: int | None
     ventilation: tuple[VentilationValue, ...]
     devices: tuple[AttachedDevice, ...]
+    raw: bytes = field(default=b"", repr=False, compare=False)
 
     def level_for_mode(self, temperature_mode: int) -> int | None:
         """Return the configured level for the active temperature mode."""

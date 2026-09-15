@@ -17,12 +17,15 @@ from .models import (
     VersionInfo,
 )
 from .protobuf import (
+    Field,
+    WireType,
     bytes_value,
     bytes_values,
     decode_fields,
     encode_bytes,
     encode_string,
     encode_uint,
+    encode_varint,
     uint_value,
     uint_values,
 )
@@ -49,6 +52,8 @@ class OperationType(IntEnum):
     REMOTE_ACCESS_CONFIRM = 142
     ROOMS_REQUEST = 194
     ROOMS_CONFIRM = 195
+    SET_ROOM_REQUEST = 203
+    SET_ROOM_CONFIRM = 204
     SET_ROOM_VALUE_REQUEST = 205
     SET_ROOM_VALUE_CONFIRM = 206
     RUN_STATE_REQUEST = 240
@@ -57,6 +62,8 @@ class OperationType(IntEnum):
     SET_RUN_STATE_CONFIRM = 244
     PAIR_REQUEST = 293
     PAIR_CONFIRM = 294
+    SET_DEVICE_PROPERTIES_REQUEST = 344
+    SET_DEVICE_PROPERTIES_CONFIRM = 345
     DEVICE_PROPERTIES_REQUEST = 346
     DEVICE_PROPERTIES_CONFIRM = 347
 
@@ -229,6 +236,7 @@ def _decode_room(message: bytes) -> Room:
             _decode_ventilation(value) for value in bytes_values(fields, 19)
         ),
         devices=tuple(_decode_device(value) for value in bytes_values(fields, 8)),
+        raw=message,
     )
 
 
@@ -317,6 +325,82 @@ def encode_property_request(
             encode_bytes(3, key_message),
         )
     )
+
+
+def encode_filter_reset_room(room: Room, device_id: int) -> bytes:
+    """Build the confirmed room update used to clear a device filter alarm."""
+    if not room.raw:
+        raise ProtocolError("room does not contain its original gateway data")
+
+    device_found = False
+    room_value = bytearray()
+    for field in decode_fields(room.raw):
+        if field.number != 8 or field.wire_type is not WireType.BYTES:
+            room_value.extend(_encode_field(field))
+            continue
+
+        device_fields = decode_fields(bytes(field.value))
+        current_device_id = uint_value(device_fields, 1)
+        is_target = current_device_id == device_id
+        device_found |= is_target
+
+        # The official client does not echo these read-only alarm/runtime
+        # values in a room write. A present false filter flag is the supported
+        # acknowledgement for the selected unit.
+        writable_fields = tuple(
+            item for item in device_fields if item.number not in (30, 31, 41)
+        )
+        device_value = bytearray(_encode_fields(writable_fields))
+        if is_target:
+            device_value.extend(encode_uint(31, 0))
+        room_value.extend(encode_bytes(8, bytes(device_value)))
+
+    if not device_found:
+        raise ProtocolError("device is no longer attached to this room")
+    return encode_bytes(1, bytes(room_value))
+
+
+def encode_property_update(device_id: int, key: PropertyKey, value: bytes) -> bytes:
+    """Build a single, confirmed device-property write."""
+    if not value:
+        raise ValueError("device-property value must not be empty")
+    key_message = b"".join(
+        (
+            encode_uint(1, key.product_type),
+            encode_uint(2, key.hardware_version),
+            encode_uint(3, key.minimum_software_version),
+            encode_uint(4, key.class_id),
+            encode_uint(5, key.instance_id),
+            encode_uint(6, key.property_id),
+        )
+    )
+    property_value = encode_bytes(1, key_message) + encode_bytes(2, value)
+    return b"".join(
+        (
+            encode_uint(1, int(PropertySequenceCommand.FINISH)),
+            encode_uint(2, device_id),
+            encode_bytes(3, property_value),
+        )
+    )
+
+
+def _encode_fields(fields: tuple[Field, ...]) -> bytes:
+    """Re-encode decoded fields while preserving unknown gateway data."""
+    return b"".join(_encode_field(field) for field in fields)
+
+
+def _encode_field(field: Field) -> bytes:
+    """Encode one already decoded Protocol Buffers field."""
+    if field.wire_type is WireType.VARINT:
+        return encode_uint(field.number, int(field.value))
+    if field.wire_type is WireType.BYTES:
+        return encode_bytes(field.number, bytes(field.value))
+
+    value = bytes(field.value)
+    expected_length = 8 if field.wire_type is WireType.FIXED_64 else 4
+    if len(value) != expected_length:
+        raise ProtocolError("invalid fixed-width Protocol Buffers field")
+    return encode_varint((field.number << 3) | int(field.wire_type)) + value
 
 
 def _required_uint(fields: tuple, number: int, label: str) -> int:

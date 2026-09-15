@@ -6,11 +6,12 @@ import time
 from dataclasses import replace
 from uuid import UUID, uuid4
 
-from .const import DEFAULT_PORT
+from .const import DEFAULT_PORT, PRODUCT_VARIANT_COMFOSPOT_50
 from .models import (
     AttachedDevice,
     GatewaySnapshot,
     PairingData,
+    PropertyKey,
     PropertyValue,
     Room,
     RunMode,
@@ -26,8 +27,10 @@ from .protocol import (
     decode_rooms,
     decode_run_state,
     decode_version,
+    encode_filter_reset_room,
     encode_pairing,
     encode_property_request,
+    encode_property_update,
     encode_room_level,
     encode_run_state,
 )
@@ -106,14 +109,24 @@ class ConnectBoxClient:
         finally:
             transport.close()
 
-    def read_snapshot(self, *, refresh_properties: bool) -> GatewaySnapshot:
+    def read_snapshot(
+        self,
+        *,
+        refresh_properties: bool,
+        expected_property_values: dict[
+            tuple[int, tuple[int, int, int]], bytes
+        ]
+        | None = None,
+    ) -> GatewaySnapshot:
         """Read a complete state snapshot from the gateway."""
         try:
             version = self._version or self._read_version()
             run_state = self._read_run_state()
             rooms = self._read_rooms()
             if refresh_properties:
-                rooms = self._read_device_properties(rooms)
+                rooms = self._read_device_properties(
+                    rooms, expected_property_values=expected_property_values
+                )
             rooms = self._restore_device_properties(rooms)
             if refresh_properties:
                 self._remember_device_properties(rooms)
@@ -161,6 +174,58 @@ class ConnectBoxClient:
             self.close()
             raise
 
+    def reset_filter_timer(
+        self, device_id: int, property_key: PropertyKey
+    ) -> GatewaySnapshot:
+        """Acknowledge filter replacement and reset its verified runtime."""
+        if property_key.value_identity != (38, 0, 15):
+            raise ValueError("unexpected filter-runtime property")
+
+        try:
+            rooms = self._read_rooms()
+            result = next(
+                (
+                    (room, device)
+                    for room in rooms
+                    for device in room.devices
+                    if device.device_id == device_id
+                ),
+                None,
+            )
+            if result is None:
+                raise ProtocolError("device is no longer available")
+            room, device = result
+            if (
+                not is_supported(device)
+                or device.product_variant != PRODUCT_VARIANT_COMFOSPOT_50
+            ):
+                raise ProtocolError("filter reset is not supported for this device")
+            if property_key.product_type != device.product_type:
+                raise ProtocolError("filter-runtime property does not match the device")
+
+            session = self._connected_session()
+            session.request(
+                OperationType.SET_ROOM_REQUEST,
+                OperationType.SET_ROOM_CONFIRM,
+                encode_filter_reset_room(room, device_id),
+            )
+            session.request(
+                OperationType.SET_DEVICE_PROPERTIES_REQUEST,
+                OperationType.SET_DEVICE_PROPERTIES_CONFIRM,
+                encode_property_update(device_id, property_key, b"\x00\x00"),
+            )
+
+            self._property_cache.pop(self._property_cache_key(device), None)
+            return self.read_snapshot(
+                refresh_properties=True,
+                expected_property_values={
+                    (device_id, property_key.value_identity): b"\x00\x00"
+                },
+            )
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
     def close(self) -> None:
         """Close the shared transport."""
         if self._transport is not None:
@@ -200,7 +265,15 @@ class ConnectBoxClient:
         )
         return decode_rooms(response.body)
 
-    def _read_device_properties(self, rooms: tuple[Room, ...]) -> tuple[Room, ...]:
+    def _read_device_properties(
+        self,
+        rooms: tuple[Room, ...],
+        *,
+        expected_property_values: dict[
+            tuple[int, tuple[int, int, int]], bytes
+        ]
+        | None = None,
+    ) -> tuple[Room, ...]:
         devices = [
             device for room in rooms for device in room.devices if is_supported(device)
         ]
@@ -235,16 +308,30 @@ class ConnectBoxClient:
             while True:
                 refreshed = self._read_rooms()
                 found = {
-                    (device.device_id, value.key.value_identity)
+                    (device.device_id, value.key.value_identity): value.value
                     for room in refreshed
                     for device in room.devices
                     for value in device.properties
                     if value.value is not None
                 }
-                if expected.issubset(found) or time.monotonic() >= deadline:
+                values_match = all(
+                    found.get(identity) == value
+                    for identity, value in (expected_property_values or {}).items()
+                )
+                if expected_property_values and values_match:
+                    return refreshed
+                if not expected_property_values and expected.issubset(found):
+                    return refreshed
+                if time.monotonic() >= deadline:
+                    if expected_property_values:
+                        raise ProtocolError(
+                            "gateway did not report the reset filter runtime"
+                        )
                     return refreshed
                 time.sleep(0.2)
         except (ProtocolError, TransportError):
+            if expected_property_values:
+                raise
             # Device-specific telemetry is optional. Preserve the core room state
             # and reconnect on the next coordinator refresh.
             self.close()

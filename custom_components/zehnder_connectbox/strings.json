@@ -56,6 +56,11 @@
     }
   },
   "entity": {
+    "button": {
+      "reset_filter_timer": {
+        "name": "Reset filter timer"
+      }
+    },
     "binary_sensor": {
       "fault": {
         "name": "Fault"

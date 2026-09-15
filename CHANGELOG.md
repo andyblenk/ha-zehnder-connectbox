@@ -31,3 +31,5 @@ project follows [Semantic Versioning](https://semver.org/).
 - Device firmware, hardware, and radio signal information.
 - Filter warnings derived from the remaining or maximum runtime when the
   device does not report a dedicated warning flag.
+- ComfoSpot 50 filter-timer reset button with gateway acknowledgements, state
+  readback, and documented dashboard confirmation.

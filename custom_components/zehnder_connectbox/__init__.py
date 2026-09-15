@@ -17,6 +17,7 @@ from .const import (
 from .coordinator import ZehnderConnectBoxCoordinator
 
 PLATFORMS = (
+    Platform.BUTTON,
     Platform.FAN,
     Platform.SELECT,
     Platform.SWITCH,
