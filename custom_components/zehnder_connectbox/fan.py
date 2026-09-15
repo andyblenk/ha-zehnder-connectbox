@@ -4,13 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.components.fan import ATTR_PERCENTAGE, FanEntity, FanEntityFeature
+from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import ZehnderConnectBoxConfigEntry
 from .entity import ConnectBoxDeviceEntity, supported_device_ids
 from .models import RunMode
+
+PRESET_LEVELS = {
+    "Level 1": 1,
+    "Level 2": 2,
+    "Level 3": 3,
+    "Level 4": 4,
+}
 
 
 async def async_setup_entry(
@@ -41,10 +48,12 @@ class ConnectBoxFan(ConnectBoxDeviceEntity, FanEntity):
     _attr_translation_key = "ventilation"
     _attr_supported_features = (
         FanEntityFeature.SET_SPEED
+        | FanEntityFeature.PRESET_MODE
         | FanEntityFeature.TURN_ON
         | FanEntityFeature.TURN_OFF
     )
     _attr_percentage_step = 25
+    _attr_preset_modes = list(PRESET_LEVELS)
     _attr_speed_count = 4
 
     def __init__(self, coordinator, device_id: int) -> None:
@@ -72,6 +81,18 @@ class ConnectBoxFan(ConnectBoxDeviceEntity, FanEntity):
         level = room.level_for_mode(self.coordinator.data.run_state.temperature_mode)
         return level * 25 if level in (0, 1, 2, 3, 4) else None
 
+    @property
+    def preset_mode(self) -> str | None:
+        """Return the current ventilation level as a named preset."""
+        percentage = self.percentage
+        if percentage is None or percentage == 0:
+            return None
+        level = percentage // 25
+        return next(
+            (name for name, value in PRESET_LEVELS.items() if value == level),
+            None,
+        )
+
     async def async_set_percentage(self, percentage: int) -> None:
         """Set a verified level or enter standby for zero percent."""
         if percentage == 0:
@@ -88,19 +109,33 @@ class ConnectBoxFan(ConnectBoxDeviceEntity, FanEntity):
         level = max(1, min(4, round(percentage / 25)))
         await self.coordinator.async_set_level(data[0].room_id, level)
 
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Wake the system and optionally set a level."""
+    async def async_set_preset_mode(self, preset_mode: str) -> None:
+        """Set a named ventilation level."""
+        await self.async_set_percentage(PRESET_LEVELS[preset_mode] * 25)
+
+    async def async_turn_on(
+        self,
+        percentage: int | None = None,
+        preset_mode: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        """Wake the system and use level 1 when no speed is supplied."""
+        if preset_mode is not None:
+            await self.async_set_preset_mode(preset_mode)
+            return
+        if percentage is not None:
+            await self.async_set_percentage(percentage)
+            return
+
+        data = self.device_data
+        if data is None:
+            return
         if (
             self.coordinator.data is not None
             and self.coordinator.data.run_state.run_mode == RunMode.OFF
         ):
             await self.coordinator.async_set_power(True)
-        if (percentage := kwargs.get(ATTR_PERCENTAGE)) is not None:
-            await self.async_set_percentage(percentage)
-        elif self.percentage == 0:
-            data = self.device_data
-            if data is not None:
-                await self.coordinator.async_set_level(data[0].room_id, 1)
+        await self.coordinator.async_set_level(data[0].room_id, 1)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Use device level 0 where reported, otherwise use global standby."""

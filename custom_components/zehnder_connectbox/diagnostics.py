@@ -13,6 +13,8 @@ from .profiles import (
     EXTRACT_AIR_TEMPERATURE,
     INCOMING_AIR_TEMPERATURE,
     SUPPLY_FAN_SPEED,
+    format_version,
+    has_filter_warning,
     is_supported,
     product_name,
 )
@@ -52,8 +54,12 @@ async def async_get_config_entry_diagnostics(
                 "product_type": device.product_type,
                 "product_variant": device.product_variant,
                 "supported": is_supported(device),
-                "filter_warning": device.filter_warning,
+                "filter_warning": has_filter_warning(device),
+                "filter_warning_reported": device.filter_warning,
                 "fault_present": any(value != 0 for value in device.errors),
+                "hardware_version": device.hardware_version,
+                "software_version": format_version(device.software_version),
+                "signal_strength": device.signal_strength,
                 "temperature_telemetry_available": any(
                     value.key.class_id == 25 and value.value is not None
                     for value in device.properties

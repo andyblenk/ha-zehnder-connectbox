@@ -103,11 +103,12 @@ the integration does not create room entities.
 | --- | --- | --- |
 | ConnectBox | Ventilation switch | Global standby/wake; wake restores the last known active mode |
 | ConnectBox | Operating mode select | Automatic, manual, antifreeze, or off |
-| Supported ventilation unit | Fan | Levels 1–4 shown as 25–100%; off uses level 0 when the unit reports support |
+| Supported ventilation unit | Fan | Levels 1–4 shown as 25–100% and named presets; off uses level 0 when the unit reports support |
 | Supported ventilation unit | Air temperature sensors | Extract and incoming air |
 | Supported ventilation unit | Fan-speed sensors | Supply and exhaust RPM |
 | Supported ventilation unit | Filter sensors | Runtime, remaining runtime, maximum runtime, and warning |
 | Supported ventilation unit | Fault binary sensor | Reports a currently signalled unit fault |
+| Supported ventilation unit | Device diagnostics | Firmware, hardware, and radio signal strength |
 
 Filter reset, firmware management, installer functions, and an unverified
 temporary boost mode are deliberately not exposed.

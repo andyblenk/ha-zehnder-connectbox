@@ -16,7 +16,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID
 from .entity import ConnectBoxDeviceEntity, supported_device_ids
-from .profiles import has_fault
+from .profiles import has_fault, has_filter_warning
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -87,7 +87,7 @@ class ConnectBoxBinarySensor(ConnectBoxDeviceEntity, BinarySensorEntity):
             return None
         device = data[1]
         if self.entity_description.kind == "filter":
-            return device.filter_warning
+            return has_filter_warning(device)
         return has_fault(device)
 
     @property

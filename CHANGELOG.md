@@ -9,6 +9,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 - Keep periodically refreshed ventilation-unit telemetry available across the
   faster room-state polls and command read-backs.
+- Accept Home Assistant's positional fan turn-on parameters and default to
+  ventilation level 1 when no speed is supplied.
 
 ### Added
 
@@ -19,3 +21,7 @@ project follows [Semantic Versioning](https://semver.org/).
   entities for the supported single-room ventilation profile.
 - Confirmed ComfoSpot 50 and provisional ComfoAir 70 profile identification.
 - Privacy-preserving Home Assistant diagnostics.
+- Named fan presets for ventilation levels 1–4.
+- Device firmware, hardware, and radio signal information.
+- Filter warnings derived from the remaining or maximum runtime when the
+  device does not report a dedicated warning flag.

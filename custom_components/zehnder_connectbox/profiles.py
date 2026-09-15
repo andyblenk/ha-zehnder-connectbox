@@ -87,3 +87,29 @@ def has_fault(device: AttachedDevice) -> bool:
         (spec.value(device) or 0) != 0
         for spec in (ERROR_CODE_1, ERROR_CODE_2, ERROR_CODE_3)
     )
+
+
+def has_filter_warning(device: AttachedDevice) -> bool | None:
+    """Return a reported or safely derived filter warning."""
+    if device.filter_warning is not None:
+        return device.filter_warning
+    remaining = FILTER_REMAINING.value(device)
+    if remaining is not None:
+        return remaining <= 0
+    runtime = FILTER_RUNTIME.value(device)
+    maximum = FILTER_MAXIMUM.value(device)
+    if runtime is not None and maximum is not None:
+        return runtime >= maximum
+    return None
+
+
+def format_version(value: int | None) -> str | None:
+    """Format a packed Zehnder ComfoNet version value."""
+    if value is None:
+        return None
+    state = (value >> 30) & 0x03
+    prefix = {1: "D", 2: "P", 3: "R"}.get(state, "")
+    major = (value >> 20) & 0x3FF
+    minor = (value >> 10) & 0x3FF
+    patch = value & 0x3FF
+    return f"{prefix}{major}.{minor}.{patch}"

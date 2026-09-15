@@ -24,7 +24,7 @@ async def async_setup_entry(
 class ConnectBoxVentilationSwitch(ConnectBoxGatewayEntity, SwitchEntity):
     """Expose global standby as an on/off control."""
 
-    _attr_translation_key = "ventilation"
+    _attr_translation_key = "central_ventilation"
 
     def __init__(self, coordinator) -> None:
         super().__init__(coordinator)

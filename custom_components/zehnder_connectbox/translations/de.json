@@ -101,11 +101,14 @@
       },
       "supply_fan_speed": {
         "name": "Zuluftlüfter-Drehzahl"
+      },
+      "signal_strength": {
+        "name": "Signalstärke"
       }
     },
     "switch": {
-      "ventilation": {
-        "name": "Lüftung"
+      "central_ventilation": {
+        "name": "Zentrale Lüftung"
       }
     }
   }

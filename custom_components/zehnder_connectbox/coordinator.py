@@ -23,7 +23,7 @@ from .const import (
     PROPERTY_REFRESH_INTERVAL,
 )
 from .models import GatewaySnapshot, RunMode
-from .profiles import product_name
+from .profiles import format_version, product_name
 from .protocol import ProtocolError
 from .transport import CertificateMismatchError, TransportError
 
@@ -141,6 +141,7 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
             manufacturer="Zehnder",
             model="ConnectBox CU-RF-ZMA",
             name=self.entry.title or DEFAULT_NAME,
+            sw_version=format_version(snapshot.version.connectbox_version),
         )
         for room in snapshot.rooms:
             for device in room.devices:
@@ -150,6 +151,12 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
                     manufacturer="Zehnder",
                     model=product_name(device),
                     name=f"{room.name} {product_name(device)}",
+                    hw_version=(
+                        str(device.hardware_version)
+                        if device.hardware_version is not None
+                        else None
+                    ),
+                    sw_version=format_version(device.software_version),
                     suggested_area=room.name,
                     via_device_id=gateway_device.id,
                 )

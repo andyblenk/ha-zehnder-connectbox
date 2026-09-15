@@ -101,11 +101,14 @@
       },
       "supply_fan_speed": {
         "name": "Supply fan speed"
+      },
+      "signal_strength": {
+        "name": "Signal strength"
       }
     },
     "switch": {
-      "ventilation": {
-        "name": "Ventilation"
+      "central_ventilation": {
+        "name": "Central ventilation"
       }
     }
   }

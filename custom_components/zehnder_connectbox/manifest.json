@@ -10,5 +10,5 @@
   "issue_tracker": "https://github.com/andyblenk/ha-zehnder-connectbox/issues",
   "loggers": ["tlslite"],
   "requirements": ["tlslite-ng==0.8.2"],
-  "version": "0.1.1"
+  "version": "0.2.0"
 }
