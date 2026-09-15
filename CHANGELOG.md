@@ -8,6 +8,8 @@ project follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Refine the integration icon with centered ventilation and wireless symbols.
+- Expand the user documentation with the software-only architecture, a full
+  entity reference, and Home Assistant screenshots.
 
 ### Fixed
 
