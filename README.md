@@ -160,5 +160,6 @@ gateway connection. See [third-party notices](THIRD_PARTY_NOTICES.md). No
 manufacturer application code, firmware, artwork, or network captures are
 included in this repository.
 
-Financial support links may be added later through GitHub's standard funding
-configuration. Contributions and constructive feedback are welcome.
+If this integration is useful to you, you can
+[buy me a coffee](https://buymeacoffee.com/andyblenk). Contributions and
+constructive feedback are welcome.
