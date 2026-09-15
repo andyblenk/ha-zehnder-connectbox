@@ -20,13 +20,11 @@ counters, radio signal strength, and device diagnostics.
 ## Support and feedback
 
 If this integration is useful to you, please consider supporting its continued
-development through [Buy Me a Coffee](https://buymeacoffee.com/andyblenk).
+development through [☕ Buy Me a Coffee](https://buymeacoffee.com/andyblenk).
 
-Suggestions and ideas for improvement are always welcome. Use
-[GitHub Discussions](https://github.com/andyblenk/ha-zehnder-connectbox/discussions)
-for feedback and questions, or
+Suggestions and ideas for improvement are always welcome. Please use
 [GitHub Issues](https://github.com/andyblenk/ha-zehnder-connectbox/issues) for
-reproducible problems.
+feedback, feature requests, and reproducible problems.
 
 > [!NOTE]
 > This is an independent community project. It is not affiliated with,
@@ -202,9 +200,8 @@ execute the reset without that dashboard confirmation.
   Diagnostics omit host addresses, names, serial numbers, UUIDs, certificate
   fingerprints, pairing material, and raw protocol frames.
 
-For defects, use [GitHub Issues](https://github.com/andyblenk/ha-zehnder-connectbox/issues).
-For questions, ideas, and broader device feedback, use
-[GitHub Discussions](https://github.com/andyblenk/ha-zehnder-connectbox/discussions).
+For defects, questions, ideas, and device feedback, use
+[GitHub Issues](https://github.com/andyblenk/ha-zehnder-connectbox/issues).
 Please review every screenshot and diagnostic attachment for private data.
 
 ## Safety and responsibility

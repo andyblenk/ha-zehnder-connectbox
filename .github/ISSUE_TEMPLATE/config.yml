@@ -1,6 +1,1 @@
 blank_issues_enabled: false
-contact_links:
-  - name: Questions and device feedback
-    url: https://github.com/andyblenk/ha-zehnder-connectbox/discussions
-    about: Ask questions or share feedback about another ConnectBox device.
-
