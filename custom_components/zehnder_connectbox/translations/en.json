@@ -61,7 +61,11 @@
         "name": "Fault"
       },
       "filter_warning": {
-        "name": "Filter warning"
+        "name": "Filter replacement required",
+        "state": {
+          "off": "No",
+          "on": "Yes"
+        }
       }
     },
     "fan": {

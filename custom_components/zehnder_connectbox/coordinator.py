@@ -153,7 +153,7 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
                     name=f"{room.name} {product_name(device)}",
                     hw_version=(
                         str(device.hardware_version)
-                        if device.hardware_version is not None
+                        if device.hardware_version not in (None, 0)
                         else None
                     ),
                     sw_version=format_version(device.software_version),

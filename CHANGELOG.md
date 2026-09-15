@@ -11,6 +11,8 @@ project follows [Semantic Versioning](https://semver.org/).
   faster room-state polls and command read-backs.
 - Accept Home Assistant's positional fan turn-on parameters and default to
   ventilation level 1 when no speed is supplied.
+- Hide an unset hardware version reported by a ventilation unit as zero.
+- Present the filter warning as a clear filter-replacement requirement.
 
 ### Added
 

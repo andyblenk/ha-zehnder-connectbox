@@ -61,7 +61,11 @@
         "name": "Störung"
       },
       "filter_warning": {
-        "name": "Filterwarnung"
+        "name": "Filterwechsel erforderlich",
+        "state": {
+          "off": "Nein",
+          "on": "Ja"
+        }
       }
     },
     "fan": {
