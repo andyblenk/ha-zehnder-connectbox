@@ -8,7 +8,14 @@ from homeassistant.core import HomeAssistant
 
 from . import ZehnderConnectBoxConfigEntry
 from .models import RunMode
-from .profiles import is_supported, product_name
+from .profiles import (
+    EXHAUST_FAN_SPEED,
+    EXTRACT_AIR_TEMPERATURE,
+    INCOMING_AIR_TEMPERATURE,
+    SUPPLY_FAN_SPEED,
+    is_supported,
+    product_name,
+)
 
 
 async def async_get_config_entry_diagnostics(
@@ -35,6 +42,7 @@ async def async_get_config_entry_diagnostics(
             "zone_state_list_version": snapshot.version.zone_state_list_version,
             "connectbox_version": snapshot.version.connectbox_version,
             "run_mode": run_mode,
+            "temperature_mode": snapshot.run_state.temperature_mode,
             "room_count": len(snapshot.rooms),
             "attached_device_count": len(devices),
         },
@@ -56,7 +64,15 @@ async def async_get_config_entry_diagnostics(
                     and value.value is not None
                     for value in device.properties
                 ),
+                "ventilation_level": room.level_for_mode(
+                    snapshot.run_state.temperature_mode
+                ),
+                "extract_air_temperature": EXTRACT_AIR_TEMPERATURE.value(device),
+                "incoming_air_temperature": INCOMING_AIR_TEMPERATURE.value(device),
+                "exhaust_fan_speed": EXHAUST_FAN_SPEED.value(device),
+                "supply_fan_speed": SUPPLY_FAN_SPEED.value(device),
             }
-            for device in devices
+            for room in snapshot.rooms
+            for device in room.devices
         ],
     }

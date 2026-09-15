@@ -5,6 +5,11 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep periodically refreshed ventilation-unit telemetry available across the
+  faster room-state polls and command read-backs.
+
 ### Added
 
 - Initial HACS-compatible Home Assistant integration structure.

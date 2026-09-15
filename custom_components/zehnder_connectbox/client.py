@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from uuid import UUID, uuid4
 
 from .const import DEFAULT_PORT
-from .models import GatewaySnapshot, PairingData, Room, RunMode, RunState, VersionInfo
+from .models import (
+    AttachedDevice,
+    GatewaySnapshot,
+    PairingData,
+    PropertyValue,
+    Room,
+    RunMode,
+    RunState,
+    VersionInfo,
+)
 from .profiles import PROPERTY_SPECS, is_supported
 from .protocol import (
     OperationType,
@@ -52,6 +62,9 @@ class ConnectBoxClient:
         self._transport: ConnectBoxTransport | None = None
         self._session: ConnectBoxSession | None = None
         self._version: VersionInfo | None = None
+        self._property_cache: dict[
+            tuple[int, int, int | None], tuple[PropertyValue, ...]
+        ] = {}
 
     @classmethod
     def pair(
@@ -101,6 +114,9 @@ class ConnectBoxClient:
             rooms = self._read_rooms()
             if refresh_properties:
                 rooms = self._read_device_properties(rooms)
+            rooms = self._restore_device_properties(rooms)
+            if refresh_properties:
+                self._remember_device_properties(rooms)
             return GatewaySnapshot(version, run_state, rooms)
         except (ProtocolError, TransportError):
             self.close()
@@ -233,3 +249,49 @@ class ConnectBoxClient:
             # and reconnect on the next coordinator refresh.
             self.close()
             return rooms
+
+    @staticmethod
+    def _property_cache_key(device: AttachedDevice) -> tuple[int, int, int | None]:
+        """Return an identity that cannot cross device product profiles."""
+        return device.device_id, device.product_type, device.product_variant
+
+    def _remember_device_properties(self, rooms: tuple[Room, ...]) -> None:
+        """Remember the latest bounded device-property refresh."""
+        connected = {
+            self._property_cache_key(device)
+            for room in rooms
+            for device in room.devices
+        }
+        self._property_cache = {
+            key: value
+            for key, value in self._property_cache.items()
+            if key in connected
+        }
+        self._property_cache.update(
+            {
+                self._property_cache_key(device): device.properties
+                for room in rooms
+                for device in room.devices
+                if device.properties
+            }
+        )
+
+    def _restore_device_properties(self, rooms: tuple[Room, ...]) -> tuple[Room, ...]:
+        """Keep slow device telemetry across normal room-state refreshes."""
+        restored_rooms: list[Room] = []
+        for room in rooms:
+            restored_devices: list[AttachedDevice] = []
+            for device in room.devices:
+                cached = self._property_cache.get(self._property_cache_key(device))
+                if cached is not None:
+                    current = {
+                        value.key.value_identity: value for value in device.properties
+                    }
+                    merged = {
+                        value.key.value_identity: value for value in cached
+                    }
+                    merged.update(current)
+                    device = replace(device, properties=tuple(merged.values()))
+                restored_devices.append(device)
+            restored_rooms.append(replace(room, devices=tuple(restored_devices)))
+        return tuple(restored_rooms)
