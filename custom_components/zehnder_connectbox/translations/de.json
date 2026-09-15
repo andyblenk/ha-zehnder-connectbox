@@ -1,0 +1,112 @@
+{
+  "config": {
+    "abort": {
+      "already_configured": "Diese ConnectBox ist bereits konfiguriert.",
+      "discovery_failed": "Die ausgewählte ConnectBox ist nicht mehr erreichbar.",
+      "pairing_failed": "Die Kopplung mit der ConnectBox konnte nicht abgeschlossen werden."
+    },
+    "error": {
+      "cannot_connect": "Unter dieser Adresse hat keine ConnectBox geantwortet.",
+      "pairing_failed": "Die Kopplung konnte nicht abgeschlossen werden. Versuche es erneut und drücke kurz die Zugriffstaste der ConnectBox, während die Anzeige blinkt.",
+      "wrong_gateway": "Unter dieser Adresse befindet sich eine andere ConnectBox."
+    },
+    "progress": {
+      "pairing": "Die Kopplung läuft. Drücke kurz die Zugriffstaste der ConnectBox, während die Anzeige blinkt."
+    },
+    "step": {
+      "user": {
+        "menu_options": {
+          "manual": "Adresse manuell eingeben",
+          "retry": "Erneut suchen"
+        },
+        "title": "ConnectBox suchen"
+      },
+      "select": {
+        "data": {
+          "discovered_gateway": "ConnectBox"
+        },
+        "description": "Wähle die ConnectBox aus, die hinzugefügt werden soll.",
+        "title": "ConnectBox auswählen"
+      },
+      "manual": {
+        "data": {
+          "host": "IP-Adresse oder Hostname"
+        },
+        "description": "Gib eine Adresse im selben lokalen Netzwerk ein.",
+        "title": "Manuell verbinden"
+      },
+      "confirm": {
+        "description": "{name} unter {host} hinzufügen? Im nächsten Schritt wird Home Assistant lokal mit diesem Gateway gekoppelt.",
+        "title": "ConnectBox bestätigen"
+      },
+      "pair": {
+        "title": "ConnectBox koppeln"
+      },
+      "pair_failed": {
+        "description": "Wähle Absenden, um die Kopplung erneut zu versuchen.",
+        "title": "Kopplung nicht abgeschlossen"
+      },
+      "reconfigure": {
+        "data": {
+          "host": "IP-Adresse oder Hostname"
+        },
+        "description": "Aktualisiere die lokale Adresse dieser ConnectBox. Ihre Identität und das vertrauenswürdige Zertifikat müssen unverändert bleiben.",
+        "title": "ConnectBox neu konfigurieren"
+      }
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "fault": {
+        "name": "Störung"
+      },
+      "filter_warning": {
+        "name": "Filterwarnung"
+      }
+    },
+    "fan": {
+      "ventilation": {
+        "name": "Lüftung"
+      }
+    },
+    "select": {
+      "operating_mode": {
+        "name": "Betriebsmodus",
+        "state": {
+          "antifreeze": "Frostschutz",
+          "automatic": "Automatik",
+          "manual": "Manuell",
+          "off": "Aus"
+        }
+      }
+    },
+    "sensor": {
+      "exhaust_fan_speed": {
+        "name": "Fortluftlüfter-Drehzahl"
+      },
+      "extract_air_temperature": {
+        "name": "Ablufttemperatur"
+      },
+      "filter_maximum": {
+        "name": "Maximale Filterlaufzeit"
+      },
+      "filter_remaining": {
+        "name": "Verbleibende Filterlaufzeit"
+      },
+      "filter_runtime": {
+        "name": "Filterlaufzeit"
+      },
+      "incoming_air_temperature": {
+        "name": "Außenlufttemperatur"
+      },
+      "supply_fan_speed": {
+        "name": "Zuluftlüfter-Drehzahl"
+      }
+    },
+    "switch": {
+      "ventilation": {
+        "name": "Lüftung"
+      }
+    }
+  }
+}
