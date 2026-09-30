@@ -10,7 +10,7 @@ from homeassistant.components import network
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST
 
-from .client import ConnectBoxClient, PairingError
+from .client import PAIRING_NICKNAME, ConnectBoxClient, PairingError
 from .const import (
     CONF_APP_ID,
     CONF_APP_UUID,
@@ -25,6 +25,7 @@ from .discovery import discover_gateways
 from .models import DiscoveredGateway, PairingData
 
 CONF_DISCOVERED_GATEWAY = "discovered_gateway"
+CONF_PAIRING_NAME = "pairing_name"
 
 
 class ZehnderConnectBoxConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -36,6 +37,7 @@ class ZehnderConnectBoxConfigFlow(ConfigFlow, domain=DOMAIN):
         self._gateways: dict[str, DiscoveredGateway] = {}
         self._selected: DiscoveredGateway | None = None
         self._pair_task: asyncio.Task[PairingData] | None = None
+        self._pairing_name = PAIRING_NICKNAME
 
     async def async_step_user(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Search the local network when the integration is added."""
@@ -121,11 +123,22 @@ class ZehnderConnectBoxConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="discovery_failed")
         await self.async_set_unique_id(str(self._selected.gateway_uuid))
         self._abort_if_unique_id_configured(updates={CONF_HOST: self._selected.host})
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return await self.async_step_pair()
+            try:
+                self._pairing_name = _validate_pairing_name(
+                    user_input.get(CONF_PAIRING_NAME, PAIRING_NICKNAME)
+                )
+            except ValueError:
+                errors[CONF_PAIRING_NAME] = "invalid_pairing_name"
+            else:
+                return await self.async_step_pair()
         return self.async_show_form(
             step_id="confirm",
-            data_schema=vol.Schema({}),
+            data_schema=vol.Schema(
+                {vol.Required(CONF_PAIRING_NAME, default=self._pairing_name): str}
+            ),
+            errors=errors,
             description_placeholders={
                 "name": self._selected.name or DEFAULT_NAME,
                 "host": self._selected.host,
@@ -220,6 +233,7 @@ class ZehnderConnectBoxConfigFlow(ConfigFlow, domain=DOMAIN):
                 self._selected.host,
                 self._selected.gateway_uuid,
                 timeout=PAIRING_TIMEOUT,
+                nickname=self._pairing_name,
             )
         )
 
@@ -240,3 +254,12 @@ class ZehnderConnectBoxConfigFlow(ConfigFlow, domain=DOMAIN):
 def _gateway_label(gateway: DiscoveredGateway) -> str:
     name = gateway.name or DEFAULT_NAME
     return f"{name} ({gateway.host})"
+
+
+def _validate_pairing_name(value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError("pairing name must be text")
+    name = value.strip()
+    if not 1 <= len(name.encode("utf-8")) <= 32:
+        raise ValueError("pairing name must contain 1 to 32 UTF-8 bytes")
+    return name

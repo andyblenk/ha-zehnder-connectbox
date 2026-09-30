@@ -77,6 +77,7 @@ class ConnectBoxClient:
         *,
         timeout: float,
         port: int = DEFAULT_PORT,
+        nickname: str = PAIRING_NICKNAME,
     ) -> PairingData:
         """Pair a new local identity after physical gateway confirmation."""
         app_uuid = uuid4()
@@ -94,7 +95,7 @@ class ConnectBoxClient:
             response = session.request(
                 OperationType.PAIR_REQUEST,
                 OperationType.PAIR_CONFIRM,
-                encode_pairing(app_uuid, proposed_remote_uuid, PAIRING_NICKNAME),
+                encode_pairing(app_uuid, proposed_remote_uuid, nickname),
                 timeout=timeout,
             )
             app_id, assigned_remote_uuid = decode_pairing(response.body)

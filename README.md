@@ -147,8 +147,13 @@ custom repository:
 3. Wait for the short local discovery scan and select the desired ConnectBox.
 4. If discovery cannot cross your network boundary, choose manual setup and
    enter the ConnectBox address.
-5. Confirm pairing and briefly press the access-key button on the ConnectBox
-   while its indicator is blinking.
+5. Confirm pairing. Optionally choose the name shown for this instance in the
+   ConnectBox's paired applications; the default is **Home Assistant**.
+6. Briefly press the access-key button on the ConnectBox while its indicator
+   is blinking.
+
+The pairing name is sent only when the integration is first paired. Changing
+it for an existing entry requires pairing that instance again.
 
 Home Assistant creates the gateway device and each recognized ventilation
 unit behind it. If another supported unit is linked later in the Zehnder app,

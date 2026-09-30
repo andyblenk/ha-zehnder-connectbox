@@ -5,6 +5,11 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Allow a custom ConnectBox pairing name during setup, while keeping
+  "Home Assistant" as the default.
+
 ## [0.2.0] - 2026-09-15
 
 ### Changed

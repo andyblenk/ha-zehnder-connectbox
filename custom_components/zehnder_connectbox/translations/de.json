@@ -7,6 +7,7 @@
     },
     "error": {
       "cannot_connect": "Unter dieser Adresse hat keine ConnectBox geantwortet.",
+      "invalid_pairing_name": "Gib einen Namen mit 1 bis 32 UTF-8-Bytes ein.",
       "pairing_failed": "Die Kopplung konnte nicht abgeschlossen werden. Versuche es erneut und drücke kurz die Zugriffstaste der ConnectBox, während die Anzeige blinkt.",
       "wrong_gateway": "Unter dieser Adresse befindet sich eine andere ConnectBox."
     },
@@ -36,6 +37,12 @@
         "title": "Manuell verbinden"
       },
       "confirm": {
+        "data": {
+          "pairing_name": "Name auf der ConnectBox"
+        },
+        "data_description": {
+          "pairing_name": "Name dieser Home-Assistant-Instanz in der Liste der gekoppelten Anwendungen auf der ConnectBox."
+        },
         "description": "{name} unter {host} hinzufügen? Im nächsten Schritt wird Home Assistant lokal mit diesem Gateway gekoppelt.",
         "title": "ConnectBox bestätigen"
       },
