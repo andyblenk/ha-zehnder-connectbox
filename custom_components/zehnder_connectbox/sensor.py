@@ -73,7 +73,6 @@ SENSORS = (
         translation_key="exhaust_fan_speed",
         native_unit_of_measurement="rpm",
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=EXHAUST_FAN_SPEED.value,
     ),
     ConnectBoxSensorDescription(
@@ -81,7 +80,6 @@ SENSORS = (
         translation_key="supply_fan_speed",
         native_unit_of_measurement="rpm",
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=SUPPLY_FAN_SPEED.value,
     ),
     ConnectBoxSensorDescription(
@@ -90,7 +88,6 @@ SENSORS = (
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.HOURS,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda device: (
             FILTER_RUNTIME.value(device)
             if FILTER_RUNTIME.value(device) is not None
@@ -103,7 +100,6 @@ SENSORS = (
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.HOURS,
         state_class=SensorStateClass.MEASUREMENT,
-        entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=FILTER_REMAINING.value,
     ),
     ConnectBoxSensorDescription(

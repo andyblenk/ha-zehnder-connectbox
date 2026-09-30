@@ -91,10 +91,10 @@ information when reported by the gateway.
 | Incoming air temperature sensor | Diagnostic binary sensor | Whether the incoming-air temperature sensor is available |
 | Humidity sensor | Diagnostic binary sensor | Whether the humidity sensor is available |
 | CO2 sensor | Diagnostic binary sensor | Whether the CO2 sensor is available |
-| Exhaust fan speed | Diagnostic sensor | Exhaust fan speed in rpm |
-| Supply fan speed | Diagnostic sensor | Supply fan speed in rpm |
-| Filter runtime | Diagnostic sensor | Hours elapsed since the last filter reset |
-| Remaining filter runtime | Diagnostic sensor | Hours remaining before filter maintenance is due |
+| Exhaust fan speed | Sensor | Exhaust fan speed in rpm |
+| Supply fan speed | Sensor | Supply fan speed in rpm |
+| Filter runtime | Sensor | Hours elapsed since the last filter reset |
+| Remaining filter runtime | Sensor | Hours remaining before filter maintenance is due |
 | Maximum filter runtime | Diagnostic sensor | Configured filter maintenance interval |
 | Filter replacement required | Diagnostic binary sensor | Indicates that filter maintenance is due |
 | Fault | Diagnostic binary sensor | Indicates a currently reported device fault |
