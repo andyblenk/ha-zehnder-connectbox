@@ -18,7 +18,7 @@ from .models import (
     RunState,
     VersionInfo,
 )
-from .profiles import PROPERTY_SPECS, is_supported
+from .profiles import is_supported, property_specs_for_device
 from .protocol import (
     OperationType,
     PropertySequenceCommand,
@@ -283,10 +283,11 @@ class ConnectBoxClient:
 
         try:
             for device in devices:
-                for index, spec in enumerate(PROPERTY_SPECS):
+                specs = property_specs_for_device(device)
+                for index, spec in enumerate(specs):
                     if index == 0:
                         command = PropertySequenceCommand.START
-                    elif index == len(PROPERTY_SPECS) - 1:
+                    elif index == len(specs) - 1:
                         command = PropertySequenceCommand.FINISH
                     else:
                         command = PropertySequenceCommand.CONTINUE
@@ -303,7 +304,7 @@ class ConnectBoxClient:
             expected = {
                 (device.device_id, spec.key)
                 for device in devices
-                for spec in PROPERTY_SPECS
+                for spec in property_specs_for_device(device)
             }
             deadline = time.monotonic() + PROPERTY_SETTLE_TIMEOUT
             while True:

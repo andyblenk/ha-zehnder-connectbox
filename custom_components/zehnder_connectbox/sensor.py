@@ -26,12 +26,15 @@ from .entity import ConnectBoxDeviceEntity, supported_device_ids
 from .models import AttachedDevice
 from .profiles import (
     EXHAUST_FAN_SPEED,
+    EXTRACT_AIR_SENSOR_STATUS,
     EXTRACT_AIR_TEMPERATURE,
     FILTER_MAXIMUM,
     FILTER_REMAINING,
     FILTER_RUNTIME,
+    INCOMING_AIR_SENSOR_STATUS,
     INCOMING_AIR_TEMPERATURE,
     SUPPLY_FAN_SPEED,
+    temperature_value,
 )
 
 
@@ -50,7 +53,9 @@ SENSORS = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
-        value_fn=EXTRACT_AIR_TEMPERATURE.value,
+        value_fn=lambda device: temperature_value(
+            device, EXTRACT_AIR_TEMPERATURE, EXTRACT_AIR_SENSOR_STATUS
+        ),
     ),
     ConnectBoxSensorDescription(
         key="incoming_air_temperature",
@@ -59,7 +64,9 @@ SENSORS = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
-        value_fn=INCOMING_AIR_TEMPERATURE.value,
+        value_fn=lambda device: temperature_value(
+            device, INCOMING_AIR_TEMPERATURE, INCOMING_AIR_SENSOR_STATUS
+        ),
     ),
     ConnectBoxSensorDescription(
         key="exhaust_fan_speed",

@@ -87,6 +87,10 @@ information when reported by the gateway.
 | Ventilation | Fan | Levels 1–4 as 25–100%, named level presets, and off where supported |
 | Extract air temperature | Sensor | Temperature of air extracted from the room |
 | Incoming air temperature | Sensor | Temperature of incoming outdoor air |
+| Extract air temperature sensor | Diagnostic binary sensor | Whether the extract-air temperature sensor is available |
+| Incoming air temperature sensor | Diagnostic binary sensor | Whether the incoming-air temperature sensor is available |
+| Humidity sensor | Diagnostic binary sensor | Whether the humidity sensor is available |
+| CO2 sensor | Diagnostic binary sensor | Whether the CO2 sensor is available |
 | Exhaust fan speed | Diagnostic sensor | Exhaust fan speed in rpm |
 | Supply fan speed | Diagnostic sensor | Supply fan speed in rpm |
 | Filter runtime | Diagnostic sensor | Hours elapsed since the last filter reset |
@@ -106,6 +110,12 @@ controls. Levels 1–4 can be selected directly as named presets or set as
 Firmware and valid hardware versions are displayed in the ventilation unit's
 device information. Optional values are shown only when the connected product
 actually reports them.
+
+The four sensor-availability indicators are currently provided for the
+physically tested ComfoSpot 50 profile. They show **Available** or **Not
+available** when the ConnectBox reports a recognized status. A missing or
+unrecognized status leaves the indicator unavailable. A temperature entity is
+unavailable when its sensor reports that it is not available.
 
 Firmware updates, installer-only settings, and unverified functions such as a
 temporary boost mode are deliberately not exposed.

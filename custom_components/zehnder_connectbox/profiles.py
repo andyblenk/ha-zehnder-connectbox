@@ -37,6 +37,10 @@ class PropertySpec:
 
 EXTRACT_AIR_TEMPERATURE = PropertySpec((25, 0, 1), 2, True, 1000)
 INCOMING_AIR_TEMPERATURE = PropertySpec((25, 1, 1), 2, True, 1000)
+EXTRACT_AIR_SENSOR_STATUS = PropertySpec((25, 0, 4), 1)
+INCOMING_AIR_SENSOR_STATUS = PropertySpec((25, 1, 4), 1)
+HUMIDITY_SENSOR_STATUS = PropertySpec((26, 0, 1), 1)
+CO2_SENSOR_STATUS = PropertySpec((39, 0, 1), 1)
 EXHAUST_FAN_SPEED = PropertySpec((38, 0, 3), 2)
 SUPPLY_FAN_SPEED = PropertySpec((38, 1, 3), 2)
 FILTER_RUNTIME = PropertySpec((38, 0, 15), 2)
@@ -58,6 +62,49 @@ PROPERTY_SPECS = (
     ERROR_CODE_2,
     ERROR_CODE_3,
 )
+
+SENSOR_STATUS_SPECS = (
+    EXTRACT_AIR_SENSOR_STATUS,
+    INCOMING_AIR_SENSOR_STATUS,
+    HUMIDITY_SENSOR_STATUS,
+    CO2_SENSOR_STATUS,
+)
+
+
+def supports_sensor_status(device: AttachedDevice) -> bool:
+    """Limit the status interpretation to the physically checked profile."""
+    return (
+        device.product_type == SUPPORTED_PRODUCT_TYPE
+        and device.product_variant == PRODUCT_VARIANT_COMFOSPOT_50
+    )
+
+
+def property_specs_for_device(device: AttachedDevice) -> tuple[PropertySpec, ...]:
+    """Return only the property reads supported by this device profile."""
+    if supports_sensor_status(device):
+        return PROPERTY_SPECS + SENSOR_STATUS_SPECS
+    return PROPERTY_SPECS
+
+
+def sensor_available(device: AttachedDevice, status_spec: PropertySpec) -> bool | None:
+    """Interpret the observed 0/1 status values; leave other values unknown."""
+    if not supports_sensor_status(device):
+        return None
+    status = status_spec.value(device)
+    if status == 0:
+        return True
+    if status == 1:
+        return False
+    return None
+
+
+def temperature_value(
+    device: AttachedDevice, temperature_spec: PropertySpec, status_spec: PropertySpec
+) -> int | float | None:
+    """Suppress a temperature when its sensor reports unavailable."""
+    if sensor_available(device, status_spec) is False:
+        return None
+    return temperature_spec.value(device)
 
 
 def is_supported(device: AttachedDevice) -> bool:
