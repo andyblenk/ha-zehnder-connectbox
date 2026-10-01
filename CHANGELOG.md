@@ -5,6 +5,18 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Show diagnostic availability indicators for the ComfoSpot 50 extract-air,
+  incoming-air, humidity, and CO2 sensors.
+- Group fan speeds, filter runtime, and remaining filter runtime with the
+  primary device sensors.
+
+### Fixed
+
+- Do not present an extract-air or incoming-air temperature as a valid reading
+  when its sensor reports that it is unavailable.
+
 ## [0.2.1b1] - 2026-09-30 (pre-release)
 
 ### Added

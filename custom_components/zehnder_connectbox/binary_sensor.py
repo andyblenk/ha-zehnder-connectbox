@@ -16,14 +16,25 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID
 from .entity import ConnectBoxDeviceEntity, supported_device_ids
-from .profiles import has_fault, has_filter_warning
+from .profiles import (
+    CO2_SENSOR_STATUS,
+    EXTRACT_AIR_SENSOR_STATUS,
+    HUMIDITY_SENSOR_STATUS,
+    INCOMING_AIR_SENSOR_STATUS,
+    PropertySpec,
+    has_fault,
+    has_filter_warning,
+    sensor_available,
+    supports_sensor_status,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
 class ConnectBoxBinarySensorDescription(BinarySensorEntityDescription):
-    """Describe a problem indicator."""
+    """Describe a device status indicator."""
 
     kind: str
+    status_spec: PropertySpec | None = None
 
 
 BINARY_SENSORS = (
@@ -41,6 +52,34 @@ BINARY_SENSORS = (
         entity_category=EntityCategory.DIAGNOSTIC,
         kind="fault",
     ),
+    ConnectBoxBinarySensorDescription(
+        key="extract_air_sensor_available",
+        translation_key="extract_air_sensor_available",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        kind="sensor_availability",
+        status_spec=EXTRACT_AIR_SENSOR_STATUS,
+    ),
+    ConnectBoxBinarySensorDescription(
+        key="incoming_air_sensor_available",
+        translation_key="incoming_air_sensor_available",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        kind="sensor_availability",
+        status_spec=INCOMING_AIR_SENSOR_STATUS,
+    ),
+    ConnectBoxBinarySensorDescription(
+        key="humidity_sensor_available",
+        translation_key="humidity_sensor_available",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        kind="sensor_availability",
+        status_spec=HUMIDITY_SENSOR_STATUS,
+    ),
+    ConnectBoxBinarySensorDescription(
+        key="co2_sensor_available",
+        translation_key="co2_sensor_available",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        kind="sensor_availability",
+        status_spec=CO2_SENSOR_STATUS,
+    ),
 )
 
 
@@ -57,10 +96,17 @@ async def async_setup_entry(
     def add_new_entities() -> None:
         new_ids = supported_device_ids(coordinator) - known
         if new_ids:
+            status_ids = {
+                device.device_id
+                for room in coordinator.data.rooms
+                for device in room.devices
+                if supports_sensor_status(device)
+            }
             async_add_entities(
                 ConnectBoxBinarySensor(coordinator, device_id, description)
                 for device_id in sorted(new_ids)
                 for description in BINARY_SENSORS
+                if description.status_spec is None or device_id in status_ids
             )
             known.update(new_ids)
 
@@ -69,7 +115,7 @@ async def async_setup_entry(
 
 
 class ConnectBoxBinarySensor(ConnectBoxDeviceEntity, BinarySensorEntity):
-    """One device problem indicator."""
+    """One device diagnostic indicator."""
 
     entity_description: ConnectBoxBinarySensorDescription
 
@@ -81,20 +127,25 @@ class ConnectBoxBinarySensor(ConnectBoxDeviceEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool | None:
-        """Return the problem state."""
+        """Return the problem or sensor-availability state."""
         data = self.device_data
         if data is None:
             return None
         device = data[1]
+        if self.entity_description.status_spec is not None:
+            return sensor_available(device, self.entity_description.status_spec)
         if self.entity_description.kind == "filter":
             return has_filter_warning(device)
         return has_fault(device)
 
     @property
     def available(self) -> bool:
-        """Mark optional filter state unavailable when it is absent."""
+        """Keep missing or unrecognized status values unavailable."""
         if not super().available:
             return False
-        if self.entity_description.kind == "filter":
+        if (
+            self.entity_description.kind == "filter"
+            or self.entity_description.status_spec is not None
+        ):
             return self.is_on is not None
         return True

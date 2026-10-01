@@ -78,6 +78,34 @@
           "off": "Nein",
           "on": "Ja"
         }
+      },
+      "extract_air_sensor_available": {
+        "name": "Ablufttemperatursensor",
+        "state": {
+          "off": "Nicht verfügbar",
+          "on": "Verfügbar"
+        }
+      },
+      "incoming_air_sensor_available": {
+        "name": "Außenlufttemperatursensor",
+        "state": {
+          "off": "Nicht verfügbar",
+          "on": "Verfügbar"
+        }
+      },
+      "humidity_sensor_available": {
+        "name": "Feuchtesensor",
+        "state": {
+          "off": "Nicht verfügbar",
+          "on": "Verfügbar"
+        }
+      },
+      "co2_sensor_available": {
+        "name": "CO₂-Sensor",
+        "state": {
+          "off": "Nicht verfügbar",
+          "on": "Verfügbar"
+        }
       }
     },
     "fan": {

@@ -9,14 +9,20 @@ from homeassistant.core import HomeAssistant
 from . import ZehnderConnectBoxConfigEntry
 from .models import RunMode
 from .profiles import (
+    CO2_SENSOR_STATUS,
     EXHAUST_FAN_SPEED,
+    EXTRACT_AIR_SENSOR_STATUS,
     EXTRACT_AIR_TEMPERATURE,
+    HUMIDITY_SENSOR_STATUS,
+    INCOMING_AIR_SENSOR_STATUS,
     INCOMING_AIR_TEMPERATURE,
     SUPPLY_FAN_SPEED,
     format_version,
     has_filter_warning,
     is_supported,
     product_name,
+    sensor_available,
+    temperature_value,
 )
 
 
@@ -73,8 +79,22 @@ async def async_get_config_entry_diagnostics(
                 "ventilation_level": room.level_for_mode(
                     snapshot.run_state.temperature_mode
                 ),
-                "extract_air_temperature": EXTRACT_AIR_TEMPERATURE.value(device),
-                "incoming_air_temperature": INCOMING_AIR_TEMPERATURE.value(device),
+                "extract_air_temperature": temperature_value(
+                    device, EXTRACT_AIR_TEMPERATURE, EXTRACT_AIR_SENSOR_STATUS
+                ),
+                "incoming_air_temperature": temperature_value(
+                    device, INCOMING_AIR_TEMPERATURE, INCOMING_AIR_SENSOR_STATUS
+                ),
+                "extract_air_sensor_available": sensor_available(
+                    device, EXTRACT_AIR_SENSOR_STATUS
+                ),
+                "incoming_air_sensor_available": sensor_available(
+                    device, INCOMING_AIR_SENSOR_STATUS
+                ),
+                "humidity_sensor_available": sensor_available(
+                    device, HUMIDITY_SENSOR_STATUS
+                ),
+                "co2_sensor_available": sensor_available(device, CO2_SENSOR_STATUS),
                 "exhaust_fan_speed": EXHAUST_FAN_SPEED.value(device),
                 "supply_fan_speed": SUPPLY_FAN_SPEED.value(device),
             }
