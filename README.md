@@ -149,6 +149,10 @@ available** when the ConnectBox reports a recognized status. A missing or
 unrecognized status leaves the indicator unavailable. A temperature entity is
 unavailable when its sensor reports that it is not available.
 
+If an earlier version already created an extract-air temperature entity and it
+remains unavailable after updating, remove the stale entity from Home
+Assistant's entity registry under **Settings → Devices & services → Entities**.
+
 Firmware updates, installer-only settings, and unverified functions such as a
 temporary boost mode are deliberately not exposed.
 

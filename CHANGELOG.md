@@ -5,6 +5,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-beta.2] - 2026-10-01 (pre-release)
+
 ### Added
 
 - Control the configured summer ventilation interval from a gateway switch
@@ -26,7 +28,9 @@ project follows [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Create the extract-air temperature entity only after the unit reports a
-  usable value.
+  usable value. If an earlier version already created it and it remains
+  unavailable after updating, the stale entity may need to be removed from
+  Home Assistant's entity registry.
 - Show the level a unit currently runs at, so a level changed on the unit's
   own control panel appears in Home Assistant. After a level is set from Home
   Assistant, wait briefly until the unit reports it.
@@ -110,7 +114,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - ComfoSpot 50 filter-timer reset button with gateway acknowledgements, state
   readback, and documented dashboard confirmation.
 
-[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.3.0-beta.1...HEAD
+[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.3.0-beta.2...HEAD
+[0.3.0-beta.2]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.3.0-beta.2
 [0.3.0-beta.1]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.3.0-beta.1
 [0.2.1-beta.2]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.1-beta.2
 [0.2.1-beta.1]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.1-beta.1
