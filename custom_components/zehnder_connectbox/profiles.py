@@ -46,6 +46,7 @@ SUPPLY_FAN_SPEED = PropertySpec((38, 1, 3), 2)
 FILTER_RUNTIME = PropertySpec((38, 0, 15), 2)
 FILTER_REMAINING = PropertySpec((38, 0, 16), 2)
 FILTER_MAXIMUM = PropertySpec((38, 0, 17), 2)
+FILTER_PROPERTY_SPECS = (FILTER_RUNTIME, FILTER_REMAINING, FILTER_MAXIMUM)
 ERROR_CODE_1 = PropertySpec((37, 0, 1), 1)
 ERROR_CODE_2 = PropertySpec((37, 1, 1), 1)
 ERROR_CODE_3 = PropertySpec((37, 2, 1), 1)
@@ -79,11 +80,18 @@ def supports_sensor_status(device: AttachedDevice) -> bool:
     )
 
 
-def property_specs_for_device(device: AttachedDevice) -> tuple[PropertySpec, ...]:
+def property_specs_for_device(
+    device: AttachedDevice, *, include_filter_properties: bool = True
+) -> tuple[PropertySpec, ...]:
     """Return only the property reads supported by this device profile."""
-    if supports_sensor_status(device):
-        return PROPERTY_SPECS + SENSOR_STATUS_SPECS
-    return PROPERTY_SPECS
+    specs = (
+        PROPERTY_SPECS + SENSOR_STATUS_SPECS
+        if supports_sensor_status(device)
+        else PROPERTY_SPECS
+    )
+    if include_filter_properties:
+        return specs
+    return tuple(spec for spec in specs if spec not in FILTER_PROPERTY_SPECS)
 
 
 def sensor_available(device: AttachedDevice, status_spec: PropertySpec) -> bool | None:

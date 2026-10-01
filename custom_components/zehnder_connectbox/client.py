@@ -114,6 +114,7 @@ class ConnectBoxClient:
         self,
         *,
         refresh_properties: bool,
+        refresh_filter_properties: bool = False,
         expected_property_values: dict[
             tuple[int, tuple[int, int, int]], bytes
         ]
@@ -126,11 +127,12 @@ class ConnectBoxClient:
             rooms = self._read_rooms()
             if refresh_properties:
                 rooms = self._read_device_properties(
-                    rooms, expected_property_values=expected_property_values
+                    rooms,
+                    include_filter_properties=refresh_filter_properties,
+                    expected_property_values=expected_property_values,
                 )
             rooms = self._restore_device_properties(rooms)
-            if refresh_properties:
-                self._remember_device_properties(rooms)
+            self._remember_device_properties(rooms)
             return GatewaySnapshot(version, run_state, rooms)
         except (ProtocolError, TransportError):
             self.close()
@@ -219,6 +221,7 @@ class ConnectBoxClient:
             self._property_cache.pop(self._property_cache_key(device), None)
             return self.read_snapshot(
                 refresh_properties=True,
+                refresh_filter_properties=True,
                 expected_property_values={
                     (device_id, property_key.value_identity): b"\x00\x00"
                 },
@@ -270,6 +273,7 @@ class ConnectBoxClient:
         self,
         rooms: tuple[Room, ...],
         *,
+        include_filter_properties: bool,
         expected_property_values: dict[
             tuple[int, tuple[int, int, int]], bytes
         ]
@@ -283,7 +287,9 @@ class ConnectBoxClient:
 
         try:
             for device in devices:
-                specs = property_specs_for_device(device)
+                specs = property_specs_for_device(
+                    device, include_filter_properties=include_filter_properties
+                )
                 for index, spec in enumerate(specs):
                     if index == 0:
                         command = PropertySequenceCommand.START
@@ -301,11 +307,10 @@ class ConnectBoxClient:
                         ),
                     )
 
-            expected = {
-                (device.device_id, spec.key)
-                for device in devices
-                for spec in property_specs_for_device(device)
-            }
+            if not expected_property_values:
+                return self._read_rooms()
+
+            # A filter reset is a write and must still be verified promptly.
             deadline = time.monotonic() + PROPERTY_SETTLE_TIMEOUT
             while True:
                 refreshed = self._read_rooms()
@@ -316,20 +321,15 @@ class ConnectBoxClient:
                     for value in device.properties
                     if value.value is not None
                 }
-                values_match = all(
+                if all(
                     found.get(identity) == value
-                    for identity, value in (expected_property_values or {}).items()
-                )
-                if expected_property_values and values_match:
-                    return refreshed
-                if not expected_property_values and expected.issubset(found):
+                    for identity, value in expected_property_values.items()
+                ):
                     return refreshed
                 if time.monotonic() >= deadline:
-                    if expected_property_values:
-                        raise ProtocolError(
-                            "gateway did not report the reset filter runtime"
-                        )
-                    return refreshed
+                    raise ProtocolError(
+                        "gateway did not report the reset filter runtime"
+                    )
                 time.sleep(0.2)
         except (ProtocolError, TransportError):
             if expected_property_values:
@@ -345,7 +345,7 @@ class ConnectBoxClient:
         return device.device_id, device.product_type, device.product_variant
 
     def _remember_device_properties(self, rooms: tuple[Room, ...]) -> None:
-        """Remember the latest bounded device-property refresh."""
+        """Remember usable telemetry from each room-state refresh."""
         connected = {
             self._property_cache_key(device)
             for room in rooms
@@ -356,14 +356,11 @@ class ConnectBoxClient:
             for key, value in self._property_cache.items()
             if key in connected
         }
-        self._property_cache.update(
-            {
-                self._property_cache_key(device): device.properties
-                for room in rooms
-                for device in room.devices
-                if device.properties
-            }
-        )
+        for room in rooms:
+            for device in room.devices:
+                usable = tuple(value for value in device.properties if value.value)
+                if usable:
+                    self._property_cache[self._property_cache_key(device)] = usable
 
     def _restore_device_properties(self, rooms: tuple[Room, ...]) -> tuple[Room, ...]:
         """Keep slow device telemetry across normal room-state refreshes."""
@@ -373,13 +370,16 @@ class ConnectBoxClient:
             for device in room.devices:
                 cached = self._property_cache.get(self._property_cache_key(device))
                 if cached is not None:
-                    current = {
-                        value.key.value_identity: value for value in device.properties
-                    }
                     merged = {
                         value.key.value_identity: value for value in cached
                     }
-                    merged.update(current)
+                    for value in device.properties:
+                        identity = value.key.value_identity
+                        # A property read may temporarily expose an empty value.
+                        # Keep the last usable value until the gateway reports
+                        # a replacement, including an explicit status byte.
+                        if value.value or identity not in merged:
+                            merged[identity] = value
                     device = replace(device, properties=tuple(merged.values()))
                 restored_devices.append(device)
             restored_rooms.append(replace(room, devices=tuple(restored_devices)))
