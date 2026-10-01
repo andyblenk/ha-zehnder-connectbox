@@ -94,6 +94,7 @@ interval. The start/stop switch becomes available in automatic or manual mode;
 its attributes show the configured duration and reported end time. If the
 function is disabled in the official app during an active interval, the
 start/stop switch remains available so the running interval can be stopped.
+
 The enable switch and duration number are configuration entities on the
 ConnectBox gateway device; the start/stop switch remains a regular control.
 
