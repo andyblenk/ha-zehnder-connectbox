@@ -121,12 +121,20 @@ class AttachedDevice:
     filter_runtime: int | None
     filter_maximum: int | None
     properties: tuple[PropertyValue, ...]
+    sensor_readings: tuple[tuple[int, int], ...] = ()
 
     def property_bytes(self, identity: tuple[int, int, int]) -> bytes | None:
         """Return a raw profile value by class, instance, and property ID."""
         for prop in self.properties:
             if prop.key.value_identity == identity:
                 return prop.value
+        return None
+
+    def reading(self, sensor_type: int) -> int | None:
+        """Return the latest room-model reading of one sensor type."""
+        for current_type, value in self.sensor_readings:
+            if current_type == sensor_type:
+                return value
         return None
 
 
@@ -148,6 +156,17 @@ class Room:
             if value.temperature_mode == temperature_mode:
                 return value.level
         return self.target_level
+
+    def current_level(self, temperature_mode: int) -> int | None:
+        """Return the level the room's units currently run at.
+
+        The room's target level follows a change made on a unit's own control
+        panel immediately, while the configured value for the situation only
+        changes later, if at all. Fall back to the configured value.
+        """
+        if self.target_level is not None:
+            return self.target_level
+        return self.level_for_mode(temperature_mode)
 
 
 @dataclass(frozen=True, slots=True)

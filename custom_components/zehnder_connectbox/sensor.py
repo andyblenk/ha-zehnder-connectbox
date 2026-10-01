@@ -12,6 +12,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
+    CONCENTRATION_PARTS_PER_MILLION,
     PERCENTAGE,
     EntityCategory,
     UnitOfTemperature,
@@ -33,7 +34,10 @@ from .profiles import (
     FILTER_RUNTIME,
     INCOMING_AIR_SENSOR_STATUS,
     INCOMING_AIR_TEMPERATURE,
+    SENSOR_TYPE_CO2,
+    SENSOR_TYPE_HUMIDITY,
     SUPPLY_FAN_SPEED,
+    board_reading,
     temperature_value,
 )
 
@@ -43,6 +47,8 @@ class ConnectBoxSensorDescription(SensorEntityDescription):
     """Describe how a device value is obtained."""
 
     value_fn: Callable[[AttachedDevice], int | float | None]
+    # Create the entity only once the unit reports the value (sensor board).
+    exists_fn: Callable[[AttachedDevice], bool] | None = None
 
 
 SENSORS = (
@@ -67,6 +73,26 @@ SENSORS = (
         value_fn=lambda device: temperature_value(
             device, INCOMING_AIR_TEMPERATURE, INCOMING_AIR_SENSOR_STATUS
         ),
+    ),
+    ConnectBoxSensorDescription(
+        key="humidity",
+        translation_key="humidity",
+        device_class=SensorDeviceClass.HUMIDITY,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda device: board_reading(device, SENSOR_TYPE_HUMIDITY),
+        exists_fn=lambda device: (
+            board_reading(device, SENSOR_TYPE_HUMIDITY) is not None
+        ),
+    ),
+    ConnectBoxSensorDescription(
+        key="co2",
+        translation_key="co2",
+        device_class=SensorDeviceClass.CO2,
+        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        state_class=SensorStateClass.MEASUREMENT,
+        value_fn=lambda device: board_reading(device, SENSOR_TYPE_CO2),
+        exists_fn=lambda device: board_reading(device, SENSOR_TYPE_CO2) is not None,
     ),
     ConnectBoxSensorDescription(
         key="exhaust_fan_speed",
@@ -131,20 +157,34 @@ async def async_setup_entry(
     entry: ZehnderConnectBoxConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up sensors and add newly attached devices dynamically."""
+    """Set up sensors and add newly attached devices or readings dynamically."""
     coordinator = entry.runtime_data
-    known: set[int] = set()
+    known: set[tuple[int, str]] = set()
 
     @callback
     def add_new_entities() -> None:
-        new_ids = supported_device_ids(coordinator) - known
-        if new_ids:
-            async_add_entities(
-                ConnectBoxSensor(coordinator, device_id, description)
-                for device_id in sorted(new_ids)
-                for description in SENSORS
-            )
-            known.update(new_ids)
+        if coordinator.data is None:
+            return
+        supported = supported_device_ids(coordinator)
+        new_entities: list[ConnectBoxSensor] = []
+        for room in coordinator.data.rooms:
+            for device in room.devices:
+                if device.device_id not in supported:
+                    continue
+                for description in SENSORS:
+                    identity = (device.device_id, description.key)
+                    if identity in known:
+                        continue
+                    if description.exists_fn is not None and not (
+                        description.exists_fn(device)
+                    ):
+                        continue
+                    new_entities.append(
+                        ConnectBoxSensor(coordinator, device.device_id, description)
+                    )
+                    known.add(identity)
+        if new_entities:
+            async_add_entities(new_entities)
 
     add_new_entities()
     entry.async_on_unload(coordinator.async_add_listener(add_new_entities))

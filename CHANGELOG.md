@@ -5,6 +5,19 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Show the relative humidity and CO2 concentration measured by the sensor
+  board of ComfoSpot 50 units that report them.
+- Include the current level, the humidity and CO2 readings, and readings of
+  not yet mapped sensor types in the diagnostics.
+
+### Changed
+
+- Show the level a unit currently runs at, so a level changed on the unit's
+  own control panel appears in Home Assistant. After a level is set from Home
+  Assistant, wait briefly until the unit reports it.
+
 ## [0.3.0-beta.1] - 2026-10-01 (pre-release)
 
 ### Added

@@ -155,6 +155,12 @@
       },
       "signal_strength": {
         "name": "Signal strength"
+      },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "co2": {
+        "name": "CO2"
       }
     },
     "switch": {
