@@ -72,6 +72,12 @@ SENSOR_STATUS_SPECS = (
     CO2_SENSOR_STATUS,
 )
 
+# Sensor types in a unit's sensor list (device field 8 of the room model).
+SENSOR_TYPE_TEMPERATURE = 1
+SENSOR_TYPE_HUMIDITY = 2
+SENSOR_TYPE_CO2 = 3
+KNOWN_SENSOR_TYPES = (SENSOR_TYPE_TEMPERATURE, SENSOR_TYPE_HUMIDITY, SENSOR_TYPE_CO2)
+
 
 def supports_sensor_status(device: AttachedDevice) -> bool:
     """Limit the status interpretation to the physically checked profile."""
@@ -121,17 +127,34 @@ def has_sensor_board(device: AttachedDevice) -> bool:
 
     The base unit only has its two temperature sensors. Each sensor board
     (humidity, CO2, or VOC) adds the humidity sensor, and only these boards
-    allow sensor-controlled operation.
+    allow sensor-controlled operation. A humidity or CO2 reading in the unit's
+    sensor list, or an available humidity or CO2 sensor status, counts.
     """
     return (
         sensor_available(device, HUMIDITY_SENSOR_STATUS) is True
         or sensor_available(device, CO2_SENSOR_STATUS) is True
+        or board_reading(device, SENSOR_TYPE_HUMIDITY) is not None
+        or board_reading(device, SENSOR_TYPE_CO2) is not None
     )
 
 
 def room_uses_sensor_mode(room: Room) -> bool:
-    """Return whether any situation of the room already uses sensor operation."""
-    return any(value.level == SENSOR_MODE_LEVEL for value in room.ventilation)
+    """Return whether the room uses sensor operation now or in a situation."""
+    return room.target_level == SENSOR_MODE_LEVEL or any(
+        value.level == SENSOR_MODE_LEVEL for value in room.ventilation
+    )
+
+
+def board_reading(device: AttachedDevice, sensor_type: int) -> int | None:
+    """Return a sensor-board reading from the unit's sensor list.
+
+    Each unit reports a list of (sensor type, value) pairs in the room model:
+    temperature in 0.1 °C, relative humidity in %, and CO2 in ppm. The types
+    were matched against six ComfoSpot 50 units with CO2 sensor boards.
+    """
+    if not supports_sensor_status(device):
+        return None
+    return device.reading(sensor_type)
 
 
 def supports_sensor_mode(room: Room, device: AttachedDevice) -> bool:

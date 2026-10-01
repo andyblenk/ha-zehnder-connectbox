@@ -44,6 +44,8 @@ from .transport import ConnectBoxTransport, TransportError
 
 PAIRING_NICKNAME = "Home Assistant"
 PROPERTY_SETTLE_TIMEOUT = 5.0
+LEVEL_SETTLE_TIMEOUT = 5.0
+LEVEL_SETTLE_POLL_INTERVAL = 0.5
 
 
 class PairingError(ConnectionError):
@@ -188,10 +190,30 @@ class ConnectBoxClient:
                 OperationType.SET_ROOM_VALUE_CONFIRM,
                 encode_room_level(room, run_state.temperature_mode, level),
             )
+            self._wait_for_room_level(room_id, level)
             return self.read_snapshot(refresh_properties=False)
         except (ProtocolError, TransportError):
             self.close()
             raise
+
+    def _wait_for_room_level(self, room_id: int, level: int) -> None:
+        """Briefly wait until the room's current level reports a written value.
+
+        The units apply a new level over the radio link, so the room's target
+        level can lag behind the confirmed write. Returning early would show
+        the previous level until the next poll.
+        """
+        deadline = time.monotonic() + LEVEL_SETTLE_TIMEOUT
+        while True:
+            room = next(
+                (item for item in self._read_rooms() if item.room_id == room_id),
+                None,
+            )
+            if room is None or room.target_level in (None, level):
+                return
+            if time.monotonic() >= deadline:
+                return
+            time.sleep(LEVEL_SETTLE_POLL_INTERVAL)
 
     def reset_filter_timer(
         self, device_id: int, property_key: PropertyKey

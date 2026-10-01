@@ -92,6 +92,8 @@ information when reported by the gateway.
 | Ventilation | Fan | Levels 1–4 as 25–100%, named level presets, sensor-controlled Auto where a sensor board is detected, and off where supported |
 | Extract air temperature | Sensor | Temperature of air extracted from the room |
 | Incoming air temperature | Sensor | Temperature of incoming outdoor air |
+| Humidity | Sensor | Relative humidity measured by the sensor board; only on ComfoSpot 50 units that report it |
+| CO2 | Sensor | CO2 concentration measured by the sensor board; only on ComfoSpot 50 units that report it |
 | Extract air temperature sensor | Diagnostic binary sensor | Whether the extract-air temperature sensor is available |
 | Incoming air temperature sensor | Diagnostic binary sensor | Whether the incoming-air temperature sensor is available |
 | Humidity sensor | Diagnostic binary sensor | Whether the humidity sensor is available |
@@ -108,7 +110,8 @@ information when reported by the gateway.
 
 The ventilation fan entity provides Home Assistant's standard power and speed
 controls. Levels 1–4 can be selected directly as named presets or set as
-25–100% fan speed.
+25–100% fan speed. It shows the level the unit currently runs at, including a
+level changed on the unit's own control panel.
 
 Without an optional sensor board, the available presets are Level 1 through
 Level 4:

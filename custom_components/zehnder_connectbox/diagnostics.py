@@ -16,7 +16,11 @@ from .profiles import (
     HUMIDITY_SENSOR_STATUS,
     INCOMING_AIR_SENSOR_STATUS,
     INCOMING_AIR_TEMPERATURE,
+    KNOWN_SENSOR_TYPES,
+    SENSOR_TYPE_CO2,
+    SENSOR_TYPE_HUMIDITY,
     SUPPLY_FAN_SPEED,
+    board_reading,
     format_version,
     has_filter_warning,
     has_sensor_board,
@@ -89,12 +93,23 @@ async def async_get_config_entry_diagnostics(
                 "ventilation_level": room.level_for_mode(
                     snapshot.run_state.temperature_mode
                 ),
+                "current_level": room.current_level(
+                    snapshot.run_state.temperature_mode
+                ),
                 "ventilation_values": {
                     _temperature_mode_name(value.temperature_mode): value.level
                     for value in room.ventilation
                 },
                 "sensor_board_reported": has_sensor_board(device),
                 "sensor_mode_supported": supports_sensor_mode(room, device),
+                "humidity": board_reading(device, SENSOR_TYPE_HUMIDITY),
+                "co2": board_reading(device, SENSOR_TYPE_CO2),
+                # Readings of not yet mapped sensor types, such as a VOC board.
+                "other_sensor_readings": {
+                    str(sensor_type): value
+                    for sensor_type, value in device.sensor_readings
+                    if sensor_type not in KNOWN_SENSOR_TYPES
+                },
                 "extract_air_temperature": temperature_value(
                     device, EXTRACT_AIR_TEMPERATURE, EXTRACT_AIR_SENSOR_STATUS
                 ),

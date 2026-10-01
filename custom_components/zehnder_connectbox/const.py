@@ -30,6 +30,6 @@ SUPPORTED_VARIANTS = {
 # places sensor-controlled operation ("Lüfterstufe AUTO") directly after level
 # 4, and the official app offers it per room and situation in place of a fan
 # level. Six ComfoSpot 50 units set to Auto in the app reported this value for
-# the active situation; writing it still needs one confirmed test.
+# the active situation, and writing it selects Auto on the unit.
 VENTILATION_LEVELS = (0, 1, 2, 3, 4)
 SENSOR_MODE_LEVEL = 5

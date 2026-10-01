@@ -65,12 +65,12 @@ class ConnectBoxFan(ConnectBoxDeviceEntity, FanEntity):
 
     @property
     def _room_level(self) -> int | None:
-        """Return the raw room value for the active temperature mode."""
+        """Return the room's current level, including changes on the unit."""
         data = self.device_data
         if data is None or self.coordinator.data is None:
             return None
         room, _device = data
-        return room.level_for_mode(self.coordinator.data.run_state.temperature_mode)
+        return room.current_level(self.coordinator.data.run_state.temperature_mode)
 
     @property
     def preset_modes(self) -> list[str]:

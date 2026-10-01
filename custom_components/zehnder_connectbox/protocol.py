@@ -269,7 +269,22 @@ def _decode_device(message: bytes) -> AttachedDevice:
         properties=tuple(
             _decode_property(value) for value in bytes_values(fields, 101)
         ),
+        sensor_readings=tuple(
+            reading
+            for value in bytes_values(fields, 8)
+            if (reading := _decode_sensor_reading(value)) is not None
+        ),
     )
+
+
+def _decode_sensor_reading(message: bytes) -> tuple[int, int] | None:
+    """Decode one entry of a device's sensor list as (sensor type, value)."""
+    fields = decode_fields(message)
+    sensor_type = uint_value(fields, 1)
+    value = uint_value(fields, 2)
+    if sensor_type is None or value is None:
+        return None
+    return sensor_type, value
 
 
 def _decode_property(message: bytes) -> PropertyValue:
