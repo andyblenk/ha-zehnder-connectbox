@@ -24,6 +24,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Create the extract-air temperature entity only after the unit reports a
+  usable value.
 - Show the level a unit currently runs at, so a level changed on the unit's
   own control panel appears in Home Assistant. After a level is set from Home
   Assistant, wait briefly until the unit reports it.

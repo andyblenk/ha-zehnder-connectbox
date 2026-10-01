@@ -52,7 +52,7 @@ class ConnectBoxSensorDescription(SensorEntityDescription):
     """Describe how a device value is obtained."""
 
     value_fn: Callable[[AttachedDevice], int | float | str | datetime | None]
-    # Create the entity only once the unit reports the value (sensor board).
+    # Create optional entities only once the unit reports a usable value.
     exists_fn: Callable[[AttachedDevice], bool] | None = None
     # Read the value from the unit's room instead of the unit itself.
     room_value_fn: Callable[[Room], int | float | str | datetime | None] | None = None
@@ -84,6 +84,10 @@ SENSORS = (
         suggested_display_precision=1,
         value_fn=lambda device: temperature_value(
             device, EXTRACT_AIR_TEMPERATURE, EXTRACT_AIR_SENSOR_STATUS
+        ),
+        exists_fn=lambda device: (
+            temperature_value(device, EXTRACT_AIR_TEMPERATURE, EXTRACT_AIR_SENSOR_STATUS)
+            is not None
         ),
     ),
     ConnectBoxSensorDescription(
