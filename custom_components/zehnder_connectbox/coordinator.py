@@ -19,6 +19,7 @@ from .const import (
     CONF_GATEWAY_UUID,
     DEFAULT_NAME,
     DOMAIN,
+    FILTER_PROPERTY_REFRESH_INTERVAL,
     POLL_INTERVAL,
     PROPERTY_REFRESH_INTERVAL,
 )
@@ -50,22 +51,32 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         self.entry = entry
         self.client = client
         self._last_property_refresh = 0.0
+        self._last_filter_property_refresh = 0.0
         self._failures = 0
         self._last_non_off_mode = RunMode.MANUAL
         self._io_lock = asyncio.Lock()
 
     async def _async_update_data(self) -> GatewaySnapshot:
+        now = time.monotonic()
         refresh_properties = (
             self.data is None
-            or time.monotonic() - self._last_property_refresh
+            or now - self._last_property_refresh
             >= PROPERTY_REFRESH_INTERVAL
+        )
+        refresh_filter_properties = (
+            self.data is None
+            or now - self._last_filter_property_refresh
+            >= FILTER_PROPERTY_REFRESH_INTERVAL
         )
         try:
             async with self._io_lock:
                 snapshot = await self.hass.async_add_executor_job(
                     partial(
                         self.client.read_snapshot,
-                        refresh_properties=refresh_properties,
+                        refresh_properties=(
+                            refresh_properties or refresh_filter_properties
+                        ),
+                        refresh_filter_properties=refresh_filter_properties,
                     )
                 )
         except CertificateMismatchError as err:
@@ -79,8 +90,10 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
 
         self._failures = 0
         self.update_interval = POLL_INTERVAL
-        if refresh_properties:
+        if refresh_properties or refresh_filter_properties:
             self._last_property_refresh = time.monotonic()
+        if refresh_filter_properties:
+            self._last_filter_property_refresh = self._last_property_refresh
         self._remember_mode(snapshot)
         self._register_devices(snapshot)
         return snapshot
@@ -130,6 +143,7 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
                 self.client.reset_filter_timer, device_id, property_value.key
             )
         self._last_property_refresh = time.monotonic()
+        self._last_filter_property_refresh = self._last_property_refresh
         self._accept_command_snapshot(snapshot)
 
     async def async_close(self) -> None:

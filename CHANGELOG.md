@@ -5,6 +5,16 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Refresh fan speeds, temperatures, and fault values every minute while
+  refreshing filter counters every 15 minutes.
+- Use the next scheduled refresh for missing read-only device values instead
+  of repeatedly reading rooms for up to five seconds. Filter resets still
+  require a confirmed read-back.
+- Read all properties when a ventilation unit is newly discovered or returns
+  after an absence, so its filter values appear without a 15-minute delay.
+
 ### Added
 
 - Show diagnostic availability indicators for the ComfoSpot 50 extract-air,
@@ -14,6 +24,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Keep the last valid device-property value when a refresh temporarily reports
+  an empty value, preventing brief unavailable states for telemetry sensors.
 - Do not present an extract-air or incoming-air temperature as a valid reading
   when its sensor reports that it is unavailable.
 
