@@ -5,6 +5,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-beta.1] - 2026-10-01 (pre-release)
+
 ### Added
 
 - Offer an `auto` ventilation preset that selects sensor-controlled operation
@@ -82,7 +84,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - ComfoSpot 50 filter-timer reset button with gateway acknowledgements, state
   readback, and documented dashboard confirmation.
 
-[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.2.1-beta.2...HEAD
+[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.3.0-beta.1...HEAD
+[0.3.0-beta.1]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.3.0-beta.1
 [0.2.1-beta.2]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.1-beta.2
 [0.2.1-beta.1]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.1-beta.1
 [0.2.0]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.0
