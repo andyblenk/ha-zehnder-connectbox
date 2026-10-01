@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-import time
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
@@ -94,28 +93,33 @@ class ConnectBoxSummerVentilationSwitch(ConnectBoxGatewayEntity, SwitchEntity):
 
     @property
     def is_on(self) -> bool | None:
-        """Use the gateway's active flag and expiry timestamp."""
+        """Follow the gateway's active flag so a running interval remains stoppable."""
         snapshot = self.coordinator.data
         if snapshot is None:
             return None
-        return snapshot.run_state.summer_ventilation_running(time.time())
+        return snapshot.run_state.summer_ventilation
 
     @property
     def available(self) -> bool:
-        """Expose control only while the app setting and run mode allow it."""
+        """Keep a running interval stoppable after the app disables the feature."""
         snapshot = self.coordinator.data
         settings = snapshot.summer_ventilation_settings if snapshot else None
         return bool(
             super().available
             and snapshot is not None
             and _supports_summer_ventilation(snapshot)
-            and settings is not None
-            and settings.enabled
-            and settings.duration_hours is not None
-            and 1 <= settings.duration_hours <= 24
             and snapshot.run_state.run_mode in (RunMode.AUTOMATIC, RunMode.MANUAL)
             and snapshot.run_state.temperature_mode in (0, 1, 2)
             and self.is_on is not None
+            and (
+                snapshot.run_state.summer_ventilation is True
+                or (
+                    settings is not None
+                    and settings.enabled
+                    and settings.duration_hours is not None
+                    and 1 <= settings.duration_hours <= 24
+                )
+            )
         )
 
     @property

@@ -183,10 +183,14 @@ class ConnectBoxClient:
             if not supports_summer_ventilation(rooms):
                 raise ProtocolError("no supported device reports summer ventilation")
             settings = self._read_summer_settings()
-            if settings is None or not settings.enabled:
-                raise ProtocolError("summer ventilation is disabled in the app")
-            if settings.duration_hours is None or not 1 <= settings.duration_hours <= 24:
-                raise ProtocolError("summer ventilation duration is unavailable")
+            if enabled:
+                if settings is None or not settings.enabled:
+                    raise ProtocolError("summer ventilation is disabled in the app")
+                if (
+                    settings.duration_hours is None
+                    or not 1 <= settings.duration_hours <= 24
+                ):
+                    raise ProtocolError("summer ventilation duration is unavailable")
             if before.run_mode not in (RunMode.AUTOMATIC, RunMode.MANUAL):
                 raise ProtocolError("summer ventilation is unavailable in this run mode")
             if before.temperature_mode in (0, 1):
@@ -197,7 +201,7 @@ class ConnectBoxClient:
                 raise ProtocolError("current situation cannot be preserved safely")
 
             current = before.summer_ventilation_running(time.time())
-            if current is None:
+            if before.summer_ventilation is None or (enabled and current is None):
                 raise ProtocolError("summer ventilation state is unavailable")
             if enabled and current:
                 return self.read_snapshot(refresh_properties=False)
