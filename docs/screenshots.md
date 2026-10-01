@@ -44,9 +44,15 @@ and the filter reset action.
 ### Ventilation control
 
 The fan entity supports power control, fan speed from 25–100%, and the named
-presets Level 1 through Level 4.
+presets Level 1 through Level 4. These are the available presets when no
+optional sensor board is detected:
 
 <img src="images/ventilation-dialog.png" alt="Ventilation level control with presets in Home Assistant" width="430">
+
+When the unit reports an available humidity or CO2 sensor, the additional
+**Auto (sensor)** preset is available:
+
+<img src="images/ventilation-dialog-with-sensor.png" alt="Ventilation control with the Auto sensor preset in Home Assistant" width="430">
 
 ### Entity overview
 
