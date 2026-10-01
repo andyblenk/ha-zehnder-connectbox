@@ -15,11 +15,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID
-from .entity import (
-    ConnectBoxDeviceEntity,
-    ConnectBoxGatewayEntity,
-    supported_device_ids,
-)
+from .entity import ConnectBoxDeviceEntity, supported_device_ids
 from .profiles import (
     CO2_SENSOR_STATUS,
     EXTRACT_AIR_SENSOR_STATUS,
@@ -94,7 +90,6 @@ async def async_setup_entry(
 ) -> None:
     """Set up binary sensors and add attached devices dynamically."""
     coordinator = entry.runtime_data
-    async_add_entities([ConnectBoxSummerVentilation(coordinator)])
     known: set[int] = set()
 
     @callback
@@ -154,26 +149,3 @@ class ConnectBoxBinarySensor(ConnectBoxDeviceEntity, BinarySensorEntity):
         ):
             return self.is_on is not None
         return True
-
-
-class ConnectBoxSummerVentilation(ConnectBoxGatewayEntity, BinarySensorEntity):
-    """Whether the app's summer ventilation is currently running."""
-
-    _attr_translation_key = "summer_ventilation"
-
-    def __init__(self, coordinator) -> None:
-        super().__init__(coordinator)
-        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
-        self._attr_unique_id = f"{gateway_uuid}_summer_ventilation"
-
-    @property
-    def is_on(self) -> bool | None:
-        """Return the summer-ventilation flag of the system run state."""
-        if self.coordinator.data is None:
-            return None
-        return self.coordinator.data.run_state.summer_ventilation
-
-    @property
-    def available(self) -> bool:
-        """Stay unavailable when the gateway does not report the flag."""
-        return super().available and self.is_on is not None

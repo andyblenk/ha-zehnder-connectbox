@@ -67,7 +67,6 @@ async def async_get_config_entry_diagnostics(
             "run_mode": run_mode,
             "temperature_mode": snapshot.run_state.temperature_mode,
             "standby": snapshot.run_state.standby,
-            "summer_ventilation": snapshot.run_state.summer_ventilation,
             "summer_ventilation_active": snapshot.run_state.summer_ventilation,
             "summer_ventilation_enabled": (
                 snapshot.summer_ventilation_settings.enabled

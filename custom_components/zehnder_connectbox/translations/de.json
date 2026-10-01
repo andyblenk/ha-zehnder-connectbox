@@ -106,13 +106,6 @@
           "off": "Nicht verfügbar",
           "on": "Verfügbar"
         }
-      },
-      "summer_ventilation": {
-        "name": "Sommerlüftung",
-        "state": {
-          "off": "Inaktiv",
-          "on": "Aktiv"
-        }
       }
     },
     "fan": {

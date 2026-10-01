@@ -7,7 +7,6 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Show whether the summer ventilation of the official app is running.
 - Configure each room's level for the app's situations (at home, asleep,
   away, frost protection) from Home Assistant.
 - Show when a temporary change of a room ends, such as a level changed on the

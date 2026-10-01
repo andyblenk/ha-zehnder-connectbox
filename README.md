@@ -85,7 +85,6 @@ integration to operate.
 | Summer ventilation | Switch | Starts or stops a summer interval for capable attached units |
 | Enable summer ventilation | Switch | Enables or disables the ConnectBox summer function |
 | Summer ventilation duration | Number | Sets the duration of future intervals to 1–24 hours |
-| Summer ventilation | Binary sensor | Whether the summer ventilation of the official app is running |
 
 Summer ventilation is a ConnectBox-wide command, not a separate control on
 each ventilation unit. The switch appears when every attached unit has a
@@ -99,6 +98,11 @@ start/stop switch remains available so the running interval can be stopped.
 
 The enable switch and duration number are configuration entities on the
 ConnectBox gateway device; the start/stop switch remains a regular control.
+
+While the situation is frost protection or a temporary change, the start/stop
+switch is unavailable as well. Whether a unit supplies air, exhausts air, or
+both during an interval is set per unit in the official app and shown by its
+summer ventilation role sensor.
 
 The ConnectBox firmware version is shown in its Home Assistant device
 information when reported by the gateway.
@@ -160,8 +164,8 @@ remains unavailable after updating, remove the stale entity from Home
 Assistant's entity registry under **Settings → Devices & services → Entities**.
 
 Firmware updates, installer-only settings, and unverified functions such as
-starting a boost or the summer ventilation are deliberately not exposed. A
-boost or summer ventilation started in the official app is shown.
+starting a boost are deliberately not exposed. A boost started in the official
+app is shown.
 
 <img src="docs/images/comfospot50-entities.png" alt="ComfoSpot 50 entities in Home Assistant" width="430">
 

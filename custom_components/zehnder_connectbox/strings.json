@@ -106,13 +106,6 @@
           "off": "Not available",
           "on": "Available"
         }
-      },
-      "summer_ventilation": {
-        "name": "Summer ventilation",
-        "state": {
-          "off": "Inactive",
-          "on": "Active"
-        }
       }
     },
     "fan": {
