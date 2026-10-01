@@ -241,6 +241,17 @@
     "switch": {
       "central_ventilation": {
         "name": "Central ventilation"
+      },
+      "summer_ventilation": {
+        "name": "Summer ventilation"
+      },
+      "summer_ventilation_enabled": {
+        "name": "Enable summer ventilation"
+      }
+    },
+    "number": {
+      "summer_ventilation_duration": {
+        "name": "Summer ventilation duration"
       }
     }
   }

@@ -106,6 +106,21 @@ def supports_sensor_status(device: AttachedDevice) -> bool:
     )
 
 
+def supports_summer_ventilation(rooms: tuple[Room, ...]) -> bool:
+    """Permit a global write only when every attached unit is validated."""
+    devices = [
+        device
+        for room in rooms
+        for device in room.devices
+    ]
+    return bool(devices) and all(
+        device.summer_ventilation_available is True
+        and device.product_type == SUPPORTED_PRODUCT_TYPE
+        and device.product_variant == PRODUCT_VARIANT_COMFOSPOT_50
+        for device in devices
+    )
+
+
 def property_specs_for_device(
     device: AttachedDevice, *, include_filter_properties: bool = True
 ) -> tuple[PropertySpec, ...]:
