@@ -90,7 +90,7 @@ information when reported by the gateway.
 | Entity | Home Assistant type | Function |
 | --- | --- | --- |
 | Ventilation | Fan | Levels 1–4 as 25–100%, named level presets, sensor-controlled Auto where a sensor board is detected, and off where supported |
-| Extract air temperature | Sensor | Temperature of air extracted from the room |
+| Extract air temperature | Sensor | Temperature of air extracted from the room; created when a usable value is reported |
 | Incoming air temperature | Sensor | Temperature of incoming outdoor air |
 | Humidity | Sensor | Relative humidity measured by the sensor board; only on ComfoSpot 50 units that report it |
 | CO2 | Sensor | CO2 concentration measured by the sensor board; only on ComfoSpot 50 units that report it |
