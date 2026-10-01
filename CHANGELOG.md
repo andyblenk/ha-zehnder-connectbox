@@ -8,7 +8,9 @@ project follows [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Show the relative humidity and CO2 concentration measured by the sensor
-  board of ComfoSpot 50 units that report them.
+  board of ComfoSpot 50 units that report them. A VOC board reports its CO2
+  equivalent in the same way, so on such units the CO2 sensor shows that
+  value.
 - Include the current level, the humidity and CO2 readings, and readings of
   not yet mapped sensor types in the diagnostics.
 
