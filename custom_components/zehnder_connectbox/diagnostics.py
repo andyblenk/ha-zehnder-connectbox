@@ -65,6 +65,17 @@ async def async_get_config_entry_diagnostics(
             "connectbox_version": snapshot.version.connectbox_version,
             "run_mode": run_mode,
             "temperature_mode": snapshot.run_state.temperature_mode,
+            "summer_ventilation_active": snapshot.run_state.summer_ventilation,
+            "summer_ventilation_enabled": (
+                snapshot.summer_ventilation_settings.enabled
+                if snapshot.summer_ventilation_settings is not None
+                else None
+            ),
+            "summer_ventilation_duration_hours": (
+                snapshot.summer_ventilation_settings.duration_hours
+                if snapshot.summer_ventilation_settings is not None
+                else None
+            ),
             "room_count": len(snapshot.rooms),
             "attached_device_count": len(devices),
         },
@@ -74,6 +85,7 @@ async def async_get_config_entry_diagnostics(
                 "product_type": device.product_type,
                 "product_variant": device.product_variant,
                 "supported": is_supported(device),
+                "summer_ventilation_available": device.summer_ventilation_available,
                 "filter_warning": has_filter_warning(device),
                 "filter_warning_reported": device.filter_warning,
                 "fault_present": any(value != 0 for value in device.errors),

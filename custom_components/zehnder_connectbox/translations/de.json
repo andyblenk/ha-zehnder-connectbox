@@ -166,6 +166,17 @@
     "switch": {
       "central_ventilation": {
         "name": "Zentrale Lüftung"
+      },
+      "summer_ventilation": {
+        "name": "Sommerlüftung"
+      },
+      "summer_ventilation_enabled": {
+        "name": "Sommerlüftung freigeben"
+      }
+    },
+    "number": {
+      "summer_ventilation_duration": {
+        "name": "Sommerlüftungsdauer"
       }
     }
   }

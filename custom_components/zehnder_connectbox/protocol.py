@@ -14,6 +14,7 @@ from .models import (
     PropertyValue,
     Room,
     RunState,
+    SummerVentilationSettings,
     VentilationValue,
     VersionInfo,
 )
@@ -61,6 +62,10 @@ class OperationType(IntEnum):
     RUN_STATE_CONFIRM = 241
     SET_RUN_STATE_REQUEST = 243
     SET_RUN_STATE_CONFIRM = 244
+    SUMMER_VENTILATION_REQUEST = 354
+    SUMMER_VENTILATION_CONFIRM = 355
+    SET_SUMMER_VENTILATION_REQUEST = 356
+    SET_SUMMER_VENTILATION_CONFIRM = 357
     PAIR_REQUEST = 293
     PAIR_CONFIRM = 294
     SET_DEVICE_PROPERTIES_REQUEST = 344
@@ -210,13 +215,45 @@ def decode_run_state(message: bytes) -> RunState:
         standby=bool(standby) if standby is not None else None,
         standby_mode=uint_value(fields, 8),
         summer_ventilation=bool(summer) if summer is not None else None,
+        summer_ventilation_end=uint_value(fields, 13),
         errors=uint_values(fields, 11),
     )
 
 
-def encode_run_state(run_mode: int, user_location: int = 1) -> bytes:
-    """Build a system run-mode update."""
-    return encode_uint(1, run_mode) + encode_uint(2, user_location)
+def decode_summer_ventilation_settings(message: bytes) -> SummerVentilationSettings:
+    """Decode the separate gateway configuration for the summer function."""
+    outer = decode_fields(message)
+    fields = decode_fields(_required_bytes(outer, 1, "summer settings"))
+    enabled = _required_uint(fields, 1, "summer enabled")
+    if enabled not in (0, 1):
+        raise ProtocolError("invalid summer-enabled value")
+    return SummerVentilationSettings(
+        enabled=bool(enabled), duration_hours=uint_value(fields, 2)
+    )
+
+
+def encode_summer_ventilation_settings(enabled: bool, duration_hours: int) -> bytes:
+    """Build a complete gateway-wide summer function configuration."""
+    if not isinstance(enabled, bool):
+        raise ValueError("summer ventilation enabled must be a boolean")
+    if (
+        isinstance(duration_hours, bool)
+        or not isinstance(duration_hours, int)
+        or not 1 <= duration_hours <= 24
+    ):
+        raise ValueError("summer ventilation duration must be between 1 and 24 hours")
+    settings = encode_uint(1, int(enabled)) + encode_uint(2, duration_hours)
+    return encode_bytes(1, settings)
+
+
+def encode_run_state(
+    run_mode: int, user_location: int = 1, *, summer_active: bool | None = None
+) -> bytes:
+    """Build a system run-state update with an optional summer toggle."""
+    body = encode_uint(1, run_mode) + encode_uint(2, user_location)
+    if summer_active is not None:
+        body += encode_uint(3, int(summer_active))
+    return body
 
 
 def decode_rooms(message: bytes) -> tuple[Room, ...]:
@@ -253,6 +290,7 @@ def _decode_device(message: bytes) -> AttachedDevice:
     fields = decode_fields(message)
     level_zero = uint_value(fields, 20)
     filter_warning = uint_value(fields, 31)
+    summer_available = uint_value(fields, 19)
     return AttachedDevice(
         device_id=_required_uint(fields, 1, "device ID"),
         product_type=_required_uint(fields, 5, "product type"),
@@ -273,6 +311,9 @@ def _decode_device(message: bytes) -> AttachedDevice:
             reading
             for value in bytes_values(fields, 8)
             if (reading := _decode_sensor_reading(value)) is not None
+        ),
+        summer_ventilation_available=(
+            bool(summer_available) if summer_available in (0, 1) else None
         ),
     )
 

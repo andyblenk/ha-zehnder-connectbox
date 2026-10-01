@@ -114,6 +114,28 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
             )
         self._accept_command_snapshot(snapshot)
 
+    async def async_set_summer_ventilation(self, enabled: bool) -> None:
+        """Set and confirm the gateway-wide summer ventilation interval."""
+        async with self._io_lock:
+            snapshot = await self.hass.async_add_executor_job(
+                self.client.set_summer_ventilation, enabled
+            )
+        self._accept_command_snapshot(snapshot)
+
+    async def async_set_summer_configuration(
+        self, *, enabled: bool | None = None, duration_hours: int | None = None
+    ) -> None:
+        """Set and confirm the gateway-wide summer function configuration."""
+        async with self._io_lock:
+            snapshot = await self.hass.async_add_executor_job(
+                partial(
+                    self.client.set_summer_configuration,
+                    enabled=enabled,
+                    duration_hours=duration_hours,
+                )
+            )
+        self._accept_command_snapshot(snapshot)
+
     async def async_set_power(self, enabled: bool) -> None:
         """Enter standby or restore the last verified active mode."""
         mode = self._last_non_off_mode if enabled else RunMode.OFF

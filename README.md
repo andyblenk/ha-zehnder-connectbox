@@ -81,6 +81,22 @@ integration to operate.
 | --- | --- | --- |
 | Central ventilation | Switch | Places the complete connected system in standby or restores the last active mode |
 | Operating mode | Select | Automatic, manual, antifreeze, or off |
+| Summer ventilation | Switch | Starts or stops a summer interval for capable attached units |
+| Enable summer ventilation | Switch | Enables or disables the ConnectBox summer function |
+| Summer ventilation duration | Number | Sets the duration of future intervals to 1–24 hours |
+
+Summer ventilation is a ConnectBox-wide command, not a separate control on
+each ventilation unit. The switch appears when every attached unit has a
+validated profile and reports this capability. The function must be enabled
+before an interval can be started. Its duration can be changed even while the
+function is disabled. Configuration changes are unavailable during an active
+interval. The start/stop switch becomes available in automatic or manual mode;
+its attributes show the configured duration and reported end time. If the
+function is disabled in the official app during an active interval, the
+start/stop switch remains available so the running interval can be stopped.
+
+The enable switch and duration number are configuration entities on the
+ConnectBox gateway device; the start/stop switch remains a regular control.
 
 The ConnectBox firmware version is shown in its Home Assistant device
 information when reported by the gateway.

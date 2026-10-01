@@ -21,9 +21,15 @@ from .models import (
     Room,
     RunMode,
     RunState,
+    SummerVentilationSettings,
     VersionInfo,
 )
-from .profiles import is_supported, property_specs_for_device, supports_sensor_mode
+from .profiles import (
+    is_supported,
+    property_specs_for_device,
+    supports_sensor_mode,
+    supports_summer_ventilation,
+)
 from .protocol import (
     OperationType,
     PropertySequenceCommand,
@@ -31,6 +37,7 @@ from .protocol import (
     decode_pairing,
     decode_rooms,
     decode_run_state,
+    decode_summer_ventilation_settings,
     decode_version,
     encode_filter_reset_room,
     encode_pairing,
@@ -38,6 +45,7 @@ from .protocol import (
     encode_property_update,
     encode_room_level,
     encode_run_state,
+    encode_summer_ventilation_settings,
 )
 from .session import ConnectBoxSession, GatewayResponseError
 from .transport import ConnectBoxTransport, TransportError
@@ -46,6 +54,8 @@ PAIRING_NICKNAME = "Home Assistant"
 PROPERTY_SETTLE_TIMEOUT = 5.0
 LEVEL_SETTLE_TIMEOUT = 5.0
 LEVEL_SETTLE_POLL_INTERVAL = 0.5
+SUMMER_SETTLE_TIMEOUT = 8.0
+SUMMER_SETTLE_POLL_INTERVAL = 0.5
 
 
 class PairingError(ConnectionError):
@@ -133,6 +143,11 @@ class ConnectBoxClient:
             version = self._version or self._read_version()
             run_state = self._read_run_state()
             rooms = self._read_rooms()
+            summer_settings = (
+                self._read_summer_settings()
+                if supports_summer_ventilation(rooms)
+                else None
+            )
             if refresh_properties:
                 rooms = self._read_device_properties(
                     rooms,
@@ -141,7 +156,7 @@ class ConnectBoxClient:
                 )
             rooms = self._restore_device_properties(rooms)
             self._remember_device_properties(rooms)
-            return GatewaySnapshot(version, run_state, rooms)
+            return GatewaySnapshot(version, run_state, rooms, summer_settings)
         except (ProtocolError, TransportError):
             self.close()
             raise
@@ -155,6 +170,137 @@ class ConnectBoxClient:
                 OperationType.SET_RUN_STATE_CONFIRM,
                 encode_run_state(int(mode)),
             )
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_summer_ventilation(self, enabled: bool) -> GatewaySnapshot:
+        """Toggle a configured gateway-wide summer interval and verify it."""
+        try:
+            before = self._read_run_state()
+            rooms = self._read_rooms()
+            if not supports_summer_ventilation(rooms):
+                raise ProtocolError("no supported device reports summer ventilation")
+            settings = self._read_summer_settings()
+            if enabled:
+                if settings is None or not settings.enabled:
+                    raise ProtocolError("summer ventilation is disabled in the app")
+                if (
+                    settings.duration_hours is None
+                    or not 1 <= settings.duration_hours <= 24
+                ):
+                    raise ProtocolError("summer ventilation duration is unavailable")
+            if before.run_mode not in (RunMode.AUTOMATIC, RunMode.MANUAL):
+                raise ProtocolError("summer ventilation is unavailable in this run mode")
+            if before.temperature_mode in (0, 1):
+                user_location = 1
+            elif before.temperature_mode == 2:
+                user_location = 2
+            else:
+                raise ProtocolError("current situation cannot be preserved safely")
+
+            current = before.summer_ventilation_running(time.time())
+            if before.summer_ventilation is None or (enabled and current is None):
+                raise ProtocolError("summer ventilation state is unavailable")
+            if enabled and current:
+                return self.read_snapshot(refresh_properties=False)
+            if (
+                not enabled
+                and before.summer_ventilation is False
+                and before.summer_ventilation_end is None
+            ):
+                return self.read_snapshot(refresh_properties=False)
+
+            self._connected_session().request(
+                OperationType.SET_RUN_STATE_REQUEST,
+                OperationType.SET_RUN_STATE_CONFIRM,
+                encode_run_state(
+                    before.run_mode,
+                    user_location,
+                    summer_active=enabled,
+                ),
+            )
+            deadline = time.monotonic() + SUMMER_SETTLE_TIMEOUT
+            while True:
+                after = self._read_run_state()
+                if (
+                    after.run_mode != before.run_mode
+                    or after.temperature_mode != before.temperature_mode
+                ):
+                    raise ProtocolError("run mode or situation changed during summer ventilation")
+                confirmed = (
+                    after.summer_ventilation_running(time.time()) is True
+                    if enabled
+                    else after.summer_ventilation is False
+                    and after.summer_ventilation_end is None
+                )
+                if confirmed:
+                    return self.read_snapshot(refresh_properties=False)
+                if time.monotonic() >= deadline:
+                    raise ProtocolError("summer ventilation write was not confirmed")
+                time.sleep(SUMMER_SETTLE_POLL_INTERVAL)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_summer_configuration(
+        self, *, enabled: bool | None = None, duration_hours: int | None = None
+    ) -> GatewaySnapshot:
+        """Change one global summer setting while preserving the other."""
+        if enabled is None and duration_hours is None:
+            raise ValueError("a summer configuration value is required")
+        if enabled is not None and not isinstance(enabled, bool):
+            raise ValueError("summer ventilation enabled must be a boolean")
+        if duration_hours is not None and (
+            isinstance(duration_hours, bool)
+            or not isinstance(duration_hours, int)
+            or not 1 <= duration_hours <= 24
+        ):
+            raise ValueError(
+                "summer ventilation duration must be between 1 and 24 hours"
+            )
+        try:
+            rooms = self._read_rooms()
+            if not supports_summer_ventilation(rooms):
+                raise ProtocolError("no supported device reports summer ventilation")
+            before = self._read_summer_settings()
+            if before is None or before.duration_hours is None:
+                raise ProtocolError("summer ventilation configuration is unavailable")
+            if not 1 <= before.duration_hours <= 24:
+                raise ProtocolError("current summer ventilation duration is invalid")
+            run_before = self._read_run_state()
+            if run_before.summer_ventilation is not False:
+                raise ProtocolError(
+                    "stop summer ventilation before changing its settings"
+                )
+            target_enabled = before.enabled if enabled is None else enabled
+            target_duration = (
+                before.duration_hours if duration_hours is None else duration_hours
+            )
+            if (target_enabled, target_duration) == (
+                before.enabled,
+                before.duration_hours,
+            ):
+                return self.read_snapshot(refresh_properties=False)
+
+            self._connected_session().request(
+                OperationType.SET_SUMMER_VENTILATION_REQUEST,
+                OperationType.SET_SUMMER_VENTILATION_CONFIRM,
+                encode_summer_ventilation_settings(target_enabled, target_duration),
+            )
+            after = self._read_summer_settings()
+            run_after = self._read_run_state()
+            if after != SummerVentilationSettings(target_enabled, target_duration):
+                raise ProtocolError(
+                    "summer ventilation configuration was not confirmed"
+                )
+            if (
+                run_after.run_mode != run_before.run_mode
+                or run_after.temperature_mode != run_before.temperature_mode
+                or run_after.summer_ventilation is not False
+            ):
+                raise ProtocolError("run state changed during summer configuration")
             return self.read_snapshot(refresh_properties=False)
         except (ProtocolError, TransportError):
             self.close()
@@ -300,6 +446,19 @@ class ConnectBoxClient:
             OperationType.RUN_STATE_REQUEST, OperationType.RUN_STATE_CONFIRM
         )
         return decode_run_state(response.body)
+
+    def _read_summer_settings(self) -> SummerVentilationSettings | None:
+        """Read the global summer function setting when supported."""
+        try:
+            response = self._connected_session().request(
+                OperationType.SUMMER_VENTILATION_REQUEST,
+                OperationType.SUMMER_VENTILATION_CONFIRM,
+            )
+        except GatewayResponseError as err:
+            if err.result in (1, 7):
+                return None
+            raise
+        return decode_summer_ventilation_settings(response.body)
 
     def _read_rooms(self) -> tuple[Room, ...]:
         response = self._connected_session().request(
