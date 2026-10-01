@@ -111,7 +111,7 @@ information when reported by the gateway.
 | Level at home, asleep, away, frost protection | Configuration select | Configured level of the unit's room for each situation of the official app |
 | Temporary change until | Sensor | End of a temporary change, such as a level changed on the unit's control panel; unknown while none is active |
 | Boost until | Sensor | End of a running boost; unknown while none is running |
-| Summer ventilation role | Diagnostic sensor | Whether the unit supplies, exhausts, or supplies and exhausts air during the summer ventilation, as set in the official app; ComfoSpot 50 |
+| Summer ventilation role | Diagnostic sensor | Whether the unit supplies, exhausts, or supplies and exhausts air during the summer ventilation, as set in the official app; created when a ComfoSpot 50 reports it |
 | Reset filter timer | Configuration button | Resets the filter counter after filter maintenance; currently verified for ComfoSpot 50 |
 
 The ventilation fan entity provides Home Assistant's standard power and speed

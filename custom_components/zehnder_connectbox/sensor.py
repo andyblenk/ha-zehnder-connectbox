@@ -42,7 +42,6 @@ from .profiles import (
     SUPPLY_FAN_SPEED,
     board_reading,
     summer_ventilation_role,
-    supports_sensor_status,
     temperature_value,
 )
 
@@ -136,7 +135,7 @@ SENSORS = (
         options=list(SUMMER_VENTILATION_ROLES.values()),
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=summer_ventilation_role,
-        exists_fn=supports_sensor_status,
+        exists_fn=lambda device: summer_ventilation_role(device) is not None,
     ),
     ConnectBoxSensorDescription(
         key="boost_until",
