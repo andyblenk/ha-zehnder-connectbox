@@ -12,6 +12,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - Use the next scheduled refresh for missing read-only device values instead
   of repeatedly reading rooms for up to five seconds. Filter resets still
   require a confirmed read-back.
+- Read all properties when a ventilation unit is newly discovered or returns
+  after an absence, so its filter values appear without a 15-minute delay.
 
 ### Added
 

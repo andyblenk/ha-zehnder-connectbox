@@ -68,6 +68,7 @@ class ConnectBoxClient:
         self._property_cache: dict[
             tuple[int, int, int | None], tuple[PropertyValue, ...]
         ] = {}
+        self._fully_requested_devices: set[tuple[int, int, int | None]] = set()
 
     @classmethod
     def pair(
@@ -287,8 +288,14 @@ class ConnectBoxClient:
 
         try:
             for device in devices:
+                device_key = self._property_cache_key(device)
+                request_filter_properties = (
+                    include_filter_properties
+                    or device_key not in self._fully_requested_devices
+                )
                 specs = property_specs_for_device(
-                    device, include_filter_properties=include_filter_properties
+                    device,
+                    include_filter_properties=request_filter_properties,
                 )
                 for index, spec in enumerate(specs):
                     if index == 0:
@@ -306,6 +313,8 @@ class ConnectBoxClient:
                             spec.request_key(device.product_type),
                         ),
                     )
+                if request_filter_properties:
+                    self._fully_requested_devices.add(device_key)
 
             if not expected_property_values:
                 return self._read_rooms()
@@ -356,6 +365,7 @@ class ConnectBoxClient:
             for key, value in self._property_cache.items()
             if key in connected
         }
+        self._fully_requested_devices.intersection_update(connected)
         for room in rooms:
             for device in room.devices:
                 usable = tuple(value for value in device.properties if value.value)
