@@ -166,6 +166,9 @@
     "switch": {
       "central_ventilation": {
         "name": "Central ventilation"
+      },
+      "summer_ventilation": {
+        "name": "Summer ventilation"
       }
     }
   }
