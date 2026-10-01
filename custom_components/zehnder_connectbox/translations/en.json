@@ -69,6 +69,9 @@
       }
     },
     "binary_sensor": {
+      "supply_only": {
+        "name": "Supply-only operation"
+      },
       "fault": {
         "name": "Fault"
       },

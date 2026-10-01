@@ -16,6 +16,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - Show when a room's running boost ends.
 - Show the role of each ComfoSpot 50 in the summer ventilation (supply,
   exhaust, or both).
+- Show when a ComfoSpot 50 runs in supply-only operation, switched on at the
+  unit's control panel. The operation can only be read, not switched (#1).
 
 ## [0.3.0-beta.2] - 2026-10-01 (pre-release)
 

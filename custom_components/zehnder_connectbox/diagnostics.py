@@ -28,6 +28,7 @@ from .profiles import (
     is_supported,
     product_name,
     sensor_available,
+    supply_only_operation,
     supports_sensor_mode,
     temperature_value,
 )
@@ -145,6 +146,7 @@ async def async_get_config_entry_diagnostics(
                 "co2_sensor_available": sensor_available(device, CO2_SENSOR_STATUS),
                 "exhaust_fan_speed": EXHAUST_FAN_SPEED.value(device),
                 "supply_fan_speed": SUPPLY_FAN_SPEED.value(device),
+                "supply_only_operation": supply_only_operation(device),
             }
             for room in snapshot.rooms
             for device in room.devices

@@ -142,6 +142,42 @@ def optional_property_specs_for_device(
     return OPTIONAL_PROPERTY_SPECS if supports_sensor_status(device) else ()
 
 
+# Whether the exhaust fan is enabled (1) or switched off (0). On a ComfoSpot 50,
+# supply-only operation switched on at the unit's control panel set it to 0,
+# and switching the operation off set it back to 1; the exhaust fan stood still
+# in between. The ConnectBox confirms a write of this value, but the unit does
+# not change, so it is only read.
+EXHAUST_FAN_ENABLED = PropertySpec((38, 0, 5), 1)
+# Read with every property refresh in its own sequence, so a unit that rejects
+# it keeps its telemetry. This three-item sequence was read successfully from
+# five ComfoSpot 50 units; the two neighbouring values are requested only to
+# keep that verified sequence.
+FAN_STATE_PROPERTY_SPECS = (
+    EXHAUST_FAN_ENABLED,
+    PropertySpec((38, 0, 6), 1),
+    PropertySpec((38, 0, 8), 1),
+)
+
+
+def fan_state_property_specs_for_device(
+    device: AttachedDevice,
+) -> tuple[PropertySpec, ...]:
+    """Return the fan-state sequence for the checked profile only."""
+    return FAN_STATE_PROPERTY_SPECS if supports_sensor_status(device) else ()
+
+
+def supply_only_operation(device: AttachedDevice) -> bool | None:
+    """Interpret the exhaust fan's enable flag; leave other values unknown."""
+    if not supports_sensor_status(device):
+        return None
+    value = EXHAUST_FAN_ENABLED.value(device)
+    if value == 0:
+        return True
+    if value == 1:
+        return False
+    return None
+
+
 def summer_ventilation_role(device: AttachedDevice) -> str | None:
     """Return the unit's role in the summer ventilation, if reported."""
     if not supports_sensor_status(device):

@@ -29,6 +29,7 @@ from .models import (
 from .profiles import (
     PropertySpec,
     is_supported,
+    fan_state_property_specs_for_device,
     optional_property_specs_for_device,
     property_specs_for_device,
     supports_sensor_mode,
@@ -556,6 +557,14 @@ class ConnectBoxClient:
                     include_filter_properties=request_filter_properties,
                 )
                 self._request_properties(device, specs)
+                fan_state_specs = fan_state_property_specs_for_device(device)
+                if fan_state_specs:
+                    try:
+                        self._request_properties(device, fan_state_specs)
+                    except GatewayResponseError:
+                        # Keep the unit's other telemetry, as for the
+                        # optional settings below.
+                        self.close()
                 optional_specs = optional_property_specs_for_device(device)
                 if request_filter_properties and optional_specs:
                     try:
