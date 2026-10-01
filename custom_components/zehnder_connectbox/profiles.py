@@ -72,6 +72,25 @@ SENSOR_STATUS_SPECS = (
     CO2_SENSOR_STATUS,
 )
 
+# Role of a unit in the app's summer ventilation, which ventilates with
+# outdoor air without heat recovery. Matched against the room settings in the
+# official app for five ComfoSpot 50 units.
+SUMMER_VENTILATION_ROLE = PropertySpec((38, 0, 11), 1)
+SUMMER_VENTILATION_ROLES = {
+    0: "supply_and_exhaust",
+    1: "supply",
+    2: "exhaust",
+}
+# Read in their own sequence, so a unit that rejects them keeps its telemetry.
+# This three-item sequence was read successfully from five ComfoSpot 50 units;
+# a single-item read sequence has not been verified. The two neighbouring
+# settings are requested only to keep that verified sequence.
+OPTIONAL_PROPERTY_SPECS = (
+    PropertySpec((38, 0, 9), 1),
+    PropertySpec((38, 0, 10), 1),
+    SUMMER_VENTILATION_ROLE,
+)
+
 # Sensor types in a unit's sensor list (device field 8 of the room model).
 SENSOR_TYPE_TEMPERATURE = 1
 SENSOR_TYPE_HUMIDITY = 2
@@ -114,6 +133,21 @@ def property_specs_for_device(
     if include_filter_properties:
         return specs
     return tuple(spec for spec in specs if spec not in FILTER_PROPERTY_SPECS)
+
+
+def optional_property_specs_for_device(
+    device: AttachedDevice,
+) -> tuple[PropertySpec, ...]:
+    """Return slowly changing settings read for the checked profile only."""
+    return OPTIONAL_PROPERTY_SPECS if supports_sensor_status(device) else ()
+
+
+def summer_ventilation_role(device: AttachedDevice) -> str | None:
+    """Return the unit's role in the summer ventilation, if reported."""
+    if not supports_sensor_status(device):
+        return None
+    value = SUMMER_VENTILATION_ROLE.value(device)
+    return SUMMER_VENTILATION_ROLES.get(value) if value is not None else None
 
 
 def sensor_available(device: AttachedDevice, status_spec: PropertySpec) -> bool | None:
