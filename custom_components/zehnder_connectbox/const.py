@@ -25,3 +25,11 @@ SUPPORTED_VARIANTS = {
     PRODUCT_VARIANT_COMFOSPOT_50,
     PRODUCT_VARIANT_COMFOAIR_70,
 }
+
+# Room ventilation values 0-4 are verified fan levels. The unit's control panel
+# places sensor-controlled operation ("Lüfterstufe AUTO") directly after level
+# 4, and the official app offers it per room and situation in place of a fan
+# level. Six ComfoSpot 50 units set to Auto in the app reported this value for
+# the active situation; writing it still needs one confirmed test.
+VENTILATION_LEVELS = (0, 1, 2, 3, 4)
+SENSOR_MODE_LEVEL = 5

@@ -5,6 +5,17 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Offer an `auto` ventilation preset that selects sensor-controlled operation
+  for ComfoSpot 50 units with a sensor board. It is offered only when the unit
+  reports an available humidity or CO2 sensor, or when its room already uses
+  sensor-controlled operation in one of its situations.
+- Show sensor-controlled operation as the `auto` preset instead of an unknown
+  fan state.
+- Include the per-situation ventilation values and sensor-mode availability in
+  the diagnostics.
+
 ## [0.2.1-beta.2] - 2026-10-01 (pre-release)
 
 ### Changed

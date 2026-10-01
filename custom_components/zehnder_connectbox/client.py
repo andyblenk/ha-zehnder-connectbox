@@ -6,7 +6,12 @@ import time
 from dataclasses import replace
 from uuid import UUID, uuid4
 
-from .const import DEFAULT_PORT, PRODUCT_VARIANT_COMFOSPOT_50
+from .const import (
+    DEFAULT_PORT,
+    PRODUCT_VARIANT_COMFOSPOT_50,
+    SENSOR_MODE_LEVEL,
+    VENTILATION_LEVELS,
+)
 from .models import (
     AttachedDevice,
     GatewaySnapshot,
@@ -18,7 +23,7 @@ from .models import (
     RunState,
     VersionInfo,
 )
-from .profiles import is_supported, property_specs_for_device
+from .profiles import is_supported, property_specs_for_device, supports_sensor_mode
 from .protocol import (
     OperationType,
     PropertySequenceCommand,
@@ -154,12 +159,16 @@ class ConnectBoxClient:
             raise
 
     def set_level(self, room_id: int, level: int) -> GatewaySnapshot:
-        """Set one room's active fan level and read back the result."""
-        if level not in (0, 1, 2, 3, 4):
-            raise ValueError("ventilation level must be between 0 and 4")
+        """Set one room's active fan level or sensor mode and read back the result."""
+        if level not in VENTILATION_LEVELS and level != SENSOR_MODE_LEVEL:
+            raise ValueError(
+                "ventilation level must be between 0 and 4 or sensor-controlled"
+            )
         try:
             run_state = self._read_run_state()
-            rooms = self._read_rooms()
+            # Restore cached telemetry so the sensor-board check below can see
+            # the slowly refreshed sensor-status properties.
+            rooms = self._restore_device_properties(self._read_rooms())
             room = next((item for item in rooms if item.room_id == room_id), None)
             if room is None:
                 raise ProtocolError("room is no longer available")
@@ -167,6 +176,12 @@ class ConnectBoxClient:
                 device.level_zero_supported for device in room.devices
             ):
                 raise ValueError("this ventilation unit does not support level 0")
+            if level == SENSOR_MODE_LEVEL and not any(
+                supports_sensor_mode(room, device) for device in room.devices
+            ):
+                raise ValueError(
+                    "this ventilation unit does not report a sensor board"
+                )
             session = self._connected_session()
             session.request(
                 OperationType.SET_ROOM_VALUE_REQUEST,

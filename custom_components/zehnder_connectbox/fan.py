@@ -9,8 +9,10 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import ZehnderConnectBoxConfigEntry
+from .const import SENSOR_MODE_LEVEL, VENTILATION_LEVELS
 from .entity import ConnectBoxDeviceEntity, supported_device_ids
 from .models import RunMode
+from .profiles import supports_sensor_mode
 
 PRESET_LEVELS = {
     "Level 1": 1,
@@ -18,6 +20,7 @@ PRESET_LEVELS = {
     "Level 3": 3,
     "Level 4": 4,
 }
+PRESET_AUTO = "auto"
 
 
 async def async_setup_entry(
@@ -53,7 +56,6 @@ class ConnectBoxFan(ConnectBoxDeviceEntity, FanEntity):
         | FanEntityFeature.TURN_OFF
     )
     _attr_percentage_step = 25
-    _attr_preset_modes = list(PRESET_LEVELS)
     _attr_speed_count = 4
 
     def __init__(self, coordinator, device_id: int) -> None:
@@ -62,32 +64,51 @@ class ConnectBoxFan(ConnectBoxDeviceEntity, FanEntity):
         self._attr_unique_id = f"{gateway_uuid}_{device_id}_ventilation"
 
     @property
+    def _room_level(self) -> int | None:
+        """Return the raw room value for the active temperature mode."""
+        data = self.device_data
+        if data is None or self.coordinator.data is None:
+            return None
+        room, _device = data
+        return room.level_for_mode(self.coordinator.data.run_state.temperature_mode)
+
+    @property
+    def preset_modes(self) -> list[str]:
+        """Offer sensor-controlled operation only for units with a sensor board."""
+        modes = list(PRESET_LEVELS)
+        data = self.device_data
+        if data is not None and supports_sensor_mode(*data):
+            modes.append(PRESET_AUTO)
+        return modes
+
+    @property
     def is_on(self) -> bool | None:
         """Return whether this unit is actively ventilating."""
         if self.coordinator.data is None:
             return None
         if self.coordinator.data.run_state.run_mode == RunMode.OFF:
             return False
-        percentage = self.percentage
-        return percentage > 0 if percentage is not None else None
+        level = self._room_level
+        if level == SENSOR_MODE_LEVEL:
+            return True
+        return level > 0 if level in VENTILATION_LEVELS else None
 
     @property
     def percentage(self) -> int | None:
-        """Map verified ventilation levels 1–4 to Home Assistant percentage."""
-        data = self.device_data
-        if data is None or self.coordinator.data is None:
-            return None
-        room, _device = data
-        level = room.level_for_mode(self.coordinator.data.run_state.temperature_mode)
-        return level * 25 if level in (0, 1, 2, 3, 4) else None
+        """Map verified ventilation levels 1–4 to Home Assistant percentage.
+
+        The level chosen by the unit in sensor-controlled operation is not
+        reported, so no percentage is shown while the Auto preset is active.
+        """
+        level = self._room_level
+        return level * 25 if level in VENTILATION_LEVELS else None
 
     @property
     def preset_mode(self) -> str | None:
-        """Return the current ventilation level as a named preset."""
-        percentage = self.percentage
-        if percentage is None or percentage == 0:
-            return None
-        level = percentage // 25
+        """Return the current ventilation level or sensor mode as a preset."""
+        level = self._room_level
+        if level == SENSOR_MODE_LEVEL:
+            return PRESET_AUTO
         return next(
             (name for name, value in PRESET_LEVELS.items() if value == level),
             None,
@@ -98,19 +119,14 @@ class ConnectBoxFan(ConnectBoxDeviceEntity, FanEntity):
         if percentage == 0:
             await self.async_turn_off()
             return
-        data = self.device_data
-        if data is None:
-            return
-        if (
-            self.coordinator.data is not None
-            and self.coordinator.data.run_state.run_mode == RunMode.OFF
-        ):
-            await self.coordinator.async_set_power(True)
         level = max(1, min(4, round(percentage / 25)))
-        await self.coordinator.async_set_level(data[0].room_id, level)
+        await self._async_set_room_level(level)
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
-        """Set a named ventilation level."""
+        """Set a named ventilation level or sensor-controlled operation."""
+        if preset_mode == PRESET_AUTO:
+            await self._async_set_room_level(SENSOR_MODE_LEVEL)
+            return
         await self.async_set_percentage(PRESET_LEVELS[preset_mode] * 25)
 
     async def async_turn_on(
@@ -119,23 +135,20 @@ class ConnectBoxFan(ConnectBoxDeviceEntity, FanEntity):
         preset_mode: str | None = None,
         **kwargs: Any,
     ) -> None:
-        """Wake the system and use level 1 when no speed is supplied."""
+        """Wake the system and use level 1 when no speed is supplied.
+
+        Sensor-controlled operation is kept when the room already uses it.
+        """
         if preset_mode is not None:
             await self.async_set_preset_mode(preset_mode)
             return
         if percentage is not None:
             await self.async_set_percentage(percentage)
             return
-
-        data = self.device_data
-        if data is None:
+        if self._room_level == SENSOR_MODE_LEVEL:
+            await self._async_wake_system()
             return
-        if (
-            self.coordinator.data is not None
-            and self.coordinator.data.run_state.run_mode == RunMode.OFF
-        ):
-            await self.coordinator.async_set_power(True)
-        await self.coordinator.async_set_level(data[0].room_id, 1)
+        await self._async_set_room_level(1)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Use device level 0 where reported, otherwise use global standby."""
@@ -144,3 +157,19 @@ class ConnectBoxFan(ConnectBoxDeviceEntity, FanEntity):
             await self.coordinator.async_set_level(data[0].room_id, 0)
         else:
             await self.coordinator.async_set_power(False)
+
+    async def _async_wake_system(self) -> None:
+        """Leave global standby before a room value is applied."""
+        if (
+            self.coordinator.data is not None
+            and self.coordinator.data.run_state.run_mode == RunMode.OFF
+        ):
+            await self.coordinator.async_set_power(True)
+
+    async def _async_set_room_level(self, level: int) -> None:
+        """Wake the system if needed and write the active room value."""
+        data = self.device_data
+        if data is None:
+            return
+        await self._async_wake_system()
+        await self.coordinator.async_set_level(data[0].room_id, level)

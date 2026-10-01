@@ -110,7 +110,14 @@
     },
     "fan": {
       "ventilation": {
-        "name": "Lüftung"
+        "name": "Lüftung",
+        "state_attributes": {
+          "preset_mode": {
+            "state": {
+              "auto": "Automatik (Sensor)"
+            }
+          }
+        }
       }
     },
     "select": {

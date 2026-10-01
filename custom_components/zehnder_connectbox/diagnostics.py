@@ -7,7 +7,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from . import ZehnderConnectBoxConfigEntry
-from .models import RunMode
+from .models import RunMode, TemperatureMode
 from .profiles import (
     CO2_SENSOR_STATUS,
     EXHAUST_FAN_SPEED,
@@ -19,11 +19,21 @@ from .profiles import (
     SUPPLY_FAN_SPEED,
     format_version,
     has_filter_warning,
+    has_sensor_board,
     is_supported,
     product_name,
     sensor_available,
+    supports_sensor_mode,
     temperature_value,
 )
+
+
+def _temperature_mode_name(mode: int) -> str:
+    """Return a readable name for a room ventilation temperature mode."""
+    try:
+        return TemperatureMode(mode).name.lower()
+    except ValueError:
+        return str(mode)
 
 
 async def async_get_config_entry_diagnostics(
@@ -79,6 +89,12 @@ async def async_get_config_entry_diagnostics(
                 "ventilation_level": room.level_for_mode(
                     snapshot.run_state.temperature_mode
                 ),
+                "ventilation_values": {
+                    _temperature_mode_name(value.temperature_mode): value.level
+                    for value in room.ventilation
+                },
+                "sensor_board_reported": has_sensor_board(device),
+                "sensor_mode_supported": supports_sensor_mode(room, device),
                 "extract_air_temperature": temperature_value(
                     device, EXTRACT_AIR_TEMPERATURE, EXTRACT_AIR_SENSOR_STATUS
                 ),
