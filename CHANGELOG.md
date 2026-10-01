@@ -7,9 +7,12 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Control the app-configured summer ventilation interval from a gateway switch
+- Control the configured summer ventilation interval from a gateway switch
   when all attached units have a validated profile and report that capability,
   with state and end time read back from the ConnectBox.
+- Configure the global summer ventilation function and its 1–24 hour duration
+  from separate gateway controls, with read-back and preservation of the other
+  setting.
 - Show the relative humidity and CO2 concentration measured by the sensor
   board of ComfoSpot 50 units that report them.
 - Include the current level, the humidity and CO2 readings, and readings of

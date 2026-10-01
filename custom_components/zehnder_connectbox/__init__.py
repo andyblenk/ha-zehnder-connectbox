@@ -19,6 +19,7 @@ from .coordinator import ZehnderConnectBoxCoordinator
 PLATFORMS = (
     Platform.BUTTON,
     Platform.FAN,
+    Platform.NUMBER,
     Platform.SELECT,
     Platform.SWITCH,
     Platform.SENSOR,

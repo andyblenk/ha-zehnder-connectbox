@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 import time
 
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -43,7 +44,12 @@ async def async_setup_entry(
             or not _supports_summer_ventilation(coordinator.data)
         ):
             return
-        async_add_entities([ConnectBoxSummerVentilationSwitch(coordinator)])
+        async_add_entities(
+            [
+                ConnectBoxSummerVentilationSwitch(coordinator),
+                ConnectBoxSummerVentilationEnabledSwitch(coordinator),
+            ]
+        )
         summer_added = True
 
     add_summer_when_supported()
@@ -136,3 +142,41 @@ class ConnectBoxSummerVentilationSwitch(ConnectBoxGatewayEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Stop the active summer ventilation interval."""
         await self.coordinator.async_set_summer_ventilation(False)
+
+
+class ConnectBoxSummerVentilationEnabledSwitch(ConnectBoxGatewayEntity, SwitchEntity):
+    """Configure whether the gateway permits summer ventilation."""
+
+    _attr_translation_key = "summer_ventilation_enabled"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_summer_ventilation_enabled"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return the gateway's function setting."""
+        snapshot = self.coordinator.data
+        settings = snapshot.summer_ventilation_settings if snapshot else None
+        return settings.enabled if settings is not None else None
+
+    @property
+    def available(self) -> bool:
+        """Avoid changing configuration during an active interval."""
+        snapshot = self.coordinator.data
+        return bool(
+            super().available
+            and snapshot is not None
+            and _supports_summer_ventilation(snapshot)
+            and snapshot.run_state.summer_ventilation is False
+        )
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable the configured summer function."""
+        await self.coordinator.async_set_summer_configuration(enabled=True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable the summer function while preserving its duration."""
+        await self.coordinator.async_set_summer_configuration(enabled=False)

@@ -64,6 +64,8 @@ class OperationType(IntEnum):
     SET_RUN_STATE_CONFIRM = 244
     SUMMER_VENTILATION_REQUEST = 354
     SUMMER_VENTILATION_CONFIRM = 355
+    SET_SUMMER_VENTILATION_REQUEST = 356
+    SET_SUMMER_VENTILATION_CONFIRM = 357
     PAIR_REQUEST = 293
     PAIR_CONFIRM = 294
     SET_DEVICE_PROPERTIES_REQUEST = 344
@@ -228,6 +230,20 @@ def decode_summer_ventilation_settings(message: bytes) -> SummerVentilationSetti
     return SummerVentilationSettings(
         enabled=bool(enabled), duration_hours=uint_value(fields, 2)
     )
+
+
+def encode_summer_ventilation_settings(enabled: bool, duration_hours: int) -> bytes:
+    """Build a complete gateway-wide summer function configuration."""
+    if not isinstance(enabled, bool):
+        raise ValueError("summer ventilation enabled must be a boolean")
+    if (
+        isinstance(duration_hours, bool)
+        or not isinstance(duration_hours, int)
+        or not 1 <= duration_hours <= 24
+    ):
+        raise ValueError("summer ventilation duration must be between 1 and 24 hours")
+    settings = encode_uint(1, int(enabled)) + encode_uint(2, duration_hours)
+    return encode_bytes(1, settings)
 
 
 def encode_run_state(
