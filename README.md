@@ -89,7 +89,7 @@ information when reported by the gateway.
 
 | Entity | Home Assistant type | Function |
 | --- | --- | --- |
-| Ventilation | Fan | Levels 1–4 as 25–100%, named level presets, and off where supported |
+| Ventilation | Fan | Levels 1–4 as 25–100%, named level presets, sensor-controlled Auto where a sensor board is detected, and off where supported |
 | Extract air temperature | Sensor | Temperature of air extracted from the room |
 | Incoming air temperature | Sensor | Temperature of incoming outdoor air |
 | Extract air temperature sensor | Diagnostic binary sensor | Whether the extract-air temperature sensor is available |
@@ -128,6 +128,38 @@ temporary boost mode are deliberately not exposed.
 <img src="docs/images/comfospot50-entities.png" alt="ComfoSpot 50 entities in Home Assistant" width="430">
 
 See the [screenshot gallery](docs/screenshots.md) for pairing and device views.
+
+### Sensor-controlled operation (Auto)
+
+ComfoSpot 50 units with the optional sensor board (humidity, CO2, or VOC) can
+let the unit choose its fan level from its sensors. The ventilation entity
+offers this as the `auto` preset only when a sensor board is detected:
+
+- the unit reports an available humidity or CO2 sensor, which only the sensor
+  boards provide, or
+- the room already uses sensor-controlled operation in one of its situations,
+  for example because it was selected in the official app.
+
+Units without a sensor board, units whose sensor status is not yet known, and
+the provisional ComfoAir 70 profile do not offer the preset.
+
+The preset selects sensor-controlled operation for the room's currently active
+situation, the same choice the official app offers instead of a fixed fan
+level. While it is active, the unit chooses its own fan level, so Home
+Assistant shows the preset but no percentage. Selecting a level or a
+percentage returns the room to a fixed level.
+
+The gateway's **Automatic** operating mode is a separate, system-wide setting
+and does not select sensor-controlled operation.
+
+```yaml
+# Example: return to sensor control in the morning after a fixed night level
+action: fan.set_preset_mode
+target:
+  entity_id: fan.comfospot_50_ventilation
+data:
+  preset_mode: auto
+```
 
 ## Requirements
 

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import IntEnum
 from uuid import UUID
 
+from .const import SENSOR_MODE_LEVEL, VENTILATION_LEVELS
 from .models import (
     AttachedDevice,
     PropertyKey,
@@ -291,8 +292,10 @@ def _decode_property(message: bytes) -> PropertyValue:
 
 def encode_room_level(room: Room, temperature_mode: int, level: int) -> bytes:
     """Update one active mode while preserving all other room mode values."""
-    if level not in (0, 1, 2, 3, 4):
-        raise ValueError("ventilation level must be between 0 and 4")
+    if level not in VENTILATION_LEVELS and level != SENSOR_MODE_LEVEL:
+        raise ValueError(
+            "ventilation level must be between 0 and 4 or sensor-controlled"
+        )
     values = {value.temperature_mode: value.level for value in room.ventilation}
     if not values:
         raise ProtocolError("room does not expose per-mode ventilation values")

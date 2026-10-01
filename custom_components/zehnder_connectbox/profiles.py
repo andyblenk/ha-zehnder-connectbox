@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from .const import (
     PRODUCT_VARIANT_COMFOAIR_70,
     PRODUCT_VARIANT_COMFOSPOT_50,
+    SENSOR_MODE_LEVEL,
     SUPPORTED_PRODUCT_TYPE,
     SUPPORTED_VARIANTS,
 )
-from .models import AttachedDevice, PropertyKey
+from .models import AttachedDevice, PropertyKey, Room
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +114,35 @@ def temperature_value(
     if sensor_available(device, status_spec) is False:
         return None
     return temperature_spec.value(device)
+
+
+def has_sensor_board(device: AttachedDevice) -> bool:
+    """Return whether the unit reports a sensor of the optional sensor board.
+
+    The base unit only has its two temperature sensors. Each sensor board
+    (humidity, CO2, or VOC) adds the humidity sensor, and only these boards
+    allow sensor-controlled operation.
+    """
+    return (
+        sensor_available(device, HUMIDITY_SENSOR_STATUS) is True
+        or sensor_available(device, CO2_SENSOR_STATUS) is True
+    )
+
+
+def room_uses_sensor_mode(room: Room) -> bool:
+    """Return whether any situation of the room already uses sensor operation."""
+    return any(value.level == SENSOR_MODE_LEVEL for value in room.ventilation)
+
+
+def supports_sensor_mode(room: Room, device: AttachedDevice) -> bool:
+    """Offer sensor-controlled operation only for a unit with a sensor board.
+
+    A room that already uses sensor operation proves the board even before the
+    periodically refreshed sensor-status properties have been read.
+    """
+    return supports_sensor_status(device) and (
+        has_sensor_board(device) or room_uses_sensor_mode(room)
+    )
 
 
 def is_supported(device: AttachedDevice) -> bool:
