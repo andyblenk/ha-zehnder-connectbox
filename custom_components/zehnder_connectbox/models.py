@@ -149,6 +149,16 @@ class Room:
     ventilation: tuple[VentilationValue, ...]
     devices: tuple[AttachedDevice, ...]
     raw: bytes = field(default=b"", repr=False, compare=False)
+    temporary_until: int | None = None
+    """Unix time at which a temporary change (e.g. on the unit) ends."""
+    boost_until: int | None = None
+    """Unix time at which the room's active boost ends."""
+    boost_duration: int | None = None
+    """Configured boost duration in minutes."""
+
+    def boost_active(self, now: float) -> bool:
+        """Return whether a boost is running at the given Unix time."""
+        return self.boost_until is not None and self.boost_until > now
 
     def level_for_mode(self, temperature_mode: int) -> int | None:
         """Return the configured level for the active temperature mode."""

@@ -81,6 +81,8 @@ integration to operate.
 | --- | --- | --- |
 | Central ventilation | Switch | Places the complete connected system in standby or restores the last active mode |
 | Operating mode | Select | Automatic, manual, antifreeze, or off |
+| Situation | Select | Active situation of the official app; selecting At home or Away switches to the manual mode |
+| Summer ventilation | Binary sensor | Whether the summer ventilation of the official app is running |
 
 The ConnectBox firmware version is shown in its Home Assistant device
 information when reported by the gateway.
@@ -106,6 +108,10 @@ information when reported by the gateway.
 | Filter replacement required | Diagnostic binary sensor | Indicates that filter maintenance is due |
 | Fault | Diagnostic binary sensor | Indicates a currently reported device fault |
 | Signal strength | Diagnostic sensor | Radio signal strength between the unit and ConnectBox |
+| Level at home, asleep, away, frost protection | Configuration select | Configured level of the unit's room for each situation of the official app |
+| Temporary change until | Sensor | End of a temporary change, such as a level changed on the unit's control panel; unknown while none is active |
+| Boost until | Sensor | End of a running boost; unknown while none is running |
+| Summer ventilation role | Diagnostic sensor | Whether the unit supplies, exhausts, or supplies and exhausts air during the summer ventilation, as set in the official app; ComfoSpot 50 |
 | Reset filter timer | Configuration button | Resets the filter counter after filter maintenance; currently verified for ComfoSpot 50 |
 
 The ventilation fan entity provides Home Assistant's standard power and speed
@@ -133,8 +139,9 @@ available** when the ConnectBox reports a recognized status. A missing or
 unrecognized status leaves the indicator unavailable. A temperature entity is
 unavailable when its sensor reports that it is not available.
 
-Firmware updates, installer-only settings, and unverified functions such as a
-temporary boost mode are deliberately not exposed.
+Firmware updates, installer-only settings, and unverified functions such as
+starting a boost or the summer ventilation are deliberately not exposed. A
+boost or summer ventilation started in the official app is shown.
 
 <img src="docs/images/comfospot50-entities.png" alt="ComfoSpot 50 entities in Home Assistant" width="430">
 

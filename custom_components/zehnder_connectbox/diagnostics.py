@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -65,6 +66,8 @@ async def async_get_config_entry_diagnostics(
             "connectbox_version": snapshot.version.connectbox_version,
             "run_mode": run_mode,
             "temperature_mode": snapshot.run_state.temperature_mode,
+            "standby": snapshot.run_state.standby,
+            "summer_ventilation": snapshot.run_state.summer_ventilation,
             "room_count": len(snapshot.rooms),
             "attached_device_count": len(devices),
         },
@@ -96,6 +99,9 @@ async def async_get_config_entry_diagnostics(
                 "current_level": room.current_level(
                     snapshot.run_state.temperature_mode
                 ),
+                "temporary_change_active": room.temporary_until is not None,
+                "boost_active": room.boost_active(time.time()),
+                "boost_duration": room.boost_duration,
                 "ventilation_values": {
                     _temperature_mode_name(value.temperature_mode): value.level
                     for value in room.ventilation
