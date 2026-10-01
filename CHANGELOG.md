@@ -5,6 +5,8 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1-beta.2] - 2026-10-01 (pre-release)
+
 ### Changed
 
 - Refresh fan speeds, temperatures, and fault values every minute while
@@ -29,7 +31,7 @@ project follows [Semantic Versioning](https://semver.org/).
 - Do not present an extract-air or incoming-air temperature as a valid reading
   when its sensor reports that it is unavailable.
 
-## [0.2.1b1] - 2026-09-30 (pre-release)
+## [0.2.1-beta.1] - 2026-09-30 (pre-release)
 
 ### Added
 
@@ -69,6 +71,7 @@ project follows [Semantic Versioning](https://semver.org/).
 - ComfoSpot 50 filter-timer reset button with gateway acknowledgements, state
   readback, and documented dashboard confirmation.
 
-[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.2.1b1...HEAD
-[0.2.1b1]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.1b1
+[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.2.1-beta.2...HEAD
+[0.2.1-beta.2]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.1-beta.2
+[0.2.1-beta.1]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.1-beta.1
 [0.2.0]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.0
