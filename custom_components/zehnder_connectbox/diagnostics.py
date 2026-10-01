@@ -104,7 +104,7 @@ async def async_get_config_entry_diagnostics(
                 "sensor_mode_supported": supports_sensor_mode(room, device),
                 "humidity": board_reading(device, SENSOR_TYPE_HUMIDITY),
                 "co2": board_reading(device, SENSOR_TYPE_CO2),
-                # Readings of not yet mapped sensor types, such as a VOC board.
+                # Readings of sensor types that are not mapped yet.
                 "other_sensor_readings": {
                     str(sensor_type): value
                     for sensor_type, value in device.sensor_readings

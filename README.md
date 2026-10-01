@@ -93,7 +93,7 @@ information when reported by the gateway.
 | Extract air temperature | Sensor | Temperature of air extracted from the room; created when a usable value is reported |
 | Incoming air temperature | Sensor | Temperature of incoming outdoor air |
 | Humidity | Sensor | Relative humidity measured by the sensor board; only on ComfoSpot 50 units that report it |
-| CO2 | Sensor | CO2 concentration measured by the sensor board; only on ComfoSpot 50 units that report it |
+| CO2 | Sensor | CO2 concentration reported by the sensor board in ppm, a CO2 equivalent on units with a VOC board (see [Sensor boards](#sensor-boards)); only on ComfoSpot 50 units that report it |
 | Extract air temperature sensor | Diagnostic binary sensor | Whether the extract-air temperature sensor is available |
 | Incoming air temperature sensor | Diagnostic binary sensor | Whether the incoming-air temperature sensor is available |
 | Humidity sensor | Diagnostic binary sensor | Whether the humidity sensor is available |
@@ -139,6 +139,24 @@ temporary boost mode are deliberately not exposed.
 <img src="docs/images/comfospot50-entities.png" alt="ComfoSpot 50 entities in Home Assistant" width="430">
 
 See the [screenshot gallery](docs/screenshots.md) for pairing and device views.
+
+### Sensor boards
+
+Zehnder offers three optional sensor boards for the ComfoSpot 50: humidity,
+humidity + CO2, and humidity + VOC. The ConnectBox reports the CO2 and the VOC
+board in the same way: both send their reading in ppm under the CO2 sensor
+type, and both report an available CO2 sensor. The integration therefore
+cannot tell the two boards apart and shows both readings as **CO2**.
+
+On a unit with a VOC board, this value is the board's CO2 equivalent, not a
+measured CO2 concentration. Unlike a CO2 reading, it also rises with other
+volatile compounds, for example alcohol vapour. This matches the
+manufacturer's documentation, which controls both boards along the same ppm
+curve. If you want the difference to be visible, rename the entity of such a
+unit in Home Assistant, for example to "Air quality (VOC)".
+
+This was verified on a ComfoSpot 50 with a humidity + VOC board, compared with
+a unit with a humidity + CO2 board.
 
 ### Sensor-controlled operation (Auto)
 
