@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -27,6 +28,7 @@ from .profiles import (
     is_supported,
     product_name,
     sensor_available,
+    supply_only_operation,
     supports_sensor_mode,
     temperature_value,
 )
@@ -65,6 +67,7 @@ async def async_get_config_entry_diagnostics(
             "connectbox_version": snapshot.version.connectbox_version,
             "run_mode": run_mode,
             "temperature_mode": snapshot.run_state.temperature_mode,
+            "standby": snapshot.run_state.standby,
             "summer_ventilation_active": snapshot.run_state.summer_ventilation,
             "summer_ventilation_enabled": (
                 snapshot.summer_ventilation_settings.enabled
@@ -108,6 +111,9 @@ async def async_get_config_entry_diagnostics(
                 "current_level": room.current_level(
                     snapshot.run_state.temperature_mode
                 ),
+                "temporary_change_active": room.temporary_until is not None,
+                "boost_active": room.boost_active(time.time()),
+                "boost_duration": room.boost_duration,
                 "ventilation_values": {
                     _temperature_mode_name(value.temperature_mode): value.level
                     for value in room.ventilation
@@ -140,6 +146,7 @@ async def async_get_config_entry_diagnostics(
                 "co2_sensor_available": sensor_available(device, CO2_SENSOR_STATUS),
                 "exhaust_fan_speed": EXHAUST_FAN_SPEED.value(device),
                 "supply_fan_speed": SUPPLY_FAN_SPEED.value(device),
+                "supply_only_operation": supply_only_operation(device),
             }
             for room in snapshot.rooms
             for device in room.devices

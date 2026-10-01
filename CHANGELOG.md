@@ -5,6 +5,20 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Configure each room's level for the app's situations (at home, asleep,
+  away, frost protection) from Home Assistant.
+- Show when a temporary change of a room ends, such as a level changed on the
+  unit's control panel.
+- Show the active situation and select the situation at home or away, which
+  switches to the manual mode.
+- Show when a room's running boost ends.
+- Show the role of each ComfoSpot 50 in the summer ventilation (supply,
+  exhaust, or both).
+- Show when a ComfoSpot 50 runs in supply-only operation, switched on at the
+  unit's control panel. The operation can only be read, not switched (#1).
+
 ## [0.3.0-beta.2] - 2026-10-01 (pre-release)
 
 ### Added

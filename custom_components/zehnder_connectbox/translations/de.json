@@ -69,6 +69,9 @@
       }
     },
     "binary_sensor": {
+      "supply_only": {
+        "name": "Zuluftbetrieb"
+      },
       "fault": {
         "name": "Störung"
       },
@@ -129,6 +132,60 @@
           "manual": "Manuell",
           "off": "Aus"
         }
+      },
+      "situation_level_awake": {
+        "name": "Stufe Daheim",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Stufe 1",
+          "level_2": "Stufe 2",
+          "level_3": "Stufe 3",
+          "level_4": "Stufe 4",
+          "auto": "Automatik (Sensor)"
+        }
+      },
+      "situation_level_asleep": {
+        "name": "Stufe Schlafen",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Stufe 1",
+          "level_2": "Stufe 2",
+          "level_3": "Stufe 3",
+          "level_4": "Stufe 4",
+          "auto": "Automatik (Sensor)"
+        }
+      },
+      "situation_level_away": {
+        "name": "Stufe Abwesend",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Stufe 1",
+          "level_2": "Stufe 2",
+          "level_3": "Stufe 3",
+          "level_4": "Stufe 4",
+          "auto": "Automatik (Sensor)"
+        }
+      },
+      "situation_level_antifreeze": {
+        "name": "Stufe Frostschutz",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Stufe 1",
+          "level_2": "Stufe 2",
+          "level_3": "Stufe 3",
+          "level_4": "Stufe 4",
+          "auto": "Automatik (Sensor)"
+        }
+      },
+      "situation": {
+        "name": "Situation",
+        "state": {
+          "awake": "Daheim",
+          "asleep": "Schlafen",
+          "away": "Abwesend",
+          "antifreeze": "Frostschutz",
+          "override": "Vorübergehend geändert"
+        }
       }
     },
     "sensor": {
@@ -161,6 +218,20 @@
       },
       "co2": {
         "name": "CO₂"
+      },
+      "temporary_until": {
+        "name": "Temporäre Änderung bis"
+      },
+      "boost_until": {
+        "name": "Stoßlüftung bis"
+      },
+      "summer_ventilation_role": {
+        "name": "Rolle Sommerlüftung",
+        "state": {
+          "supply_and_exhaust": "Zu- und Abluft",
+          "supply": "Zuluft",
+          "exhaust": "Abluft"
+        }
       }
     },
     "switch": {

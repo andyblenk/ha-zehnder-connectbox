@@ -1,4 +1,4 @@
-"""Problem indicators for supported ConnectBox ventilation units."""
+"""Status and problem indicators for supported ConnectBox ventilation units."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from .const import CONF_GATEWAY_UUID
 from .entity import ConnectBoxDeviceEntity, supported_device_ids
 from .profiles import (
     CO2_SENSOR_STATUS,
+    EXHAUST_FAN_ENABLED,
     EXTRACT_AIR_SENSOR_STATUS,
     HUMIDITY_SENSOR_STATUS,
     INCOMING_AIR_SENSOR_STATUS,
@@ -25,6 +26,7 @@ from .profiles import (
     has_fault,
     has_filter_warning,
     sensor_available,
+    supply_only_operation,
     supports_sensor_status,
 )
 
@@ -38,6 +40,12 @@ class ConnectBoxBinarySensorDescription(BinarySensorEntityDescription):
 
 
 BINARY_SENSORS = (
+    ConnectBoxBinarySensorDescription(
+        key="supply_only",
+        translation_key="supply_only",
+        kind="supply_only",
+        status_spec=EXHAUST_FAN_ENABLED,
+    ),
     ConnectBoxBinarySensorDescription(
         key="filter_warning",
         translation_key="filter_warning",
@@ -127,11 +135,13 @@ class ConnectBoxBinarySensor(ConnectBoxDeviceEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool | None:
-        """Return the problem or sensor-availability state."""
+        """Return the operating, problem, or sensor-availability state."""
         data = self.device_data
         if data is None:
             return None
         device = data[1]
+        if self.entity_description.kind == "supply_only":
+            return supply_only_operation(device)
         if self.entity_description.status_spec is not None:
             return sensor_available(device, self.entity_description.status_spec)
         if self.entity_description.kind == "filter":

@@ -81,6 +81,7 @@ integration to operate.
 | --- | --- | --- |
 | Central ventilation | Switch | Places the complete connected system in standby or restores the last active mode |
 | Operating mode | Select | Automatic, manual, antifreeze, or off |
+| Situation | Select | Active situation of the official app; selecting At home or Away switches to the manual mode |
 | Summer ventilation | Switch | Starts or stops a summer interval for capable attached units |
 | Enable summer ventilation | Switch | Enables or disables the ConnectBox summer function |
 | Summer ventilation duration | Number | Sets the duration of future intervals to 1–24 hours |
@@ -97,6 +98,11 @@ start/stop switch remains available so the running interval can be stopped.
 
 The enable switch and duration number are configuration entities on the
 ConnectBox gateway device; the start/stop switch remains a regular control.
+
+While the situation is frost protection or a temporary change, the start/stop
+switch is unavailable as well. Whether a unit supplies air, exhausts air, or
+both during an interval is set per unit in the official app and shown by its
+summer ventilation role sensor.
 
 The ConnectBox firmware version is shown in its Home Assistant device
 information when reported by the gateway.
@@ -116,12 +122,17 @@ information when reported by the gateway.
 | CO2 sensor | Diagnostic binary sensor | Whether the CO2 sensor is available |
 | Exhaust fan speed | Sensor | Exhaust fan speed in rpm |
 | Supply fan speed | Sensor | Supply fan speed in rpm |
+| Supply-only operation | Binary sensor | On while the unit runs in supply-only operation with its exhaust fan switched off; only on ComfoSpot 50 units that report it |
 | Filter runtime | Sensor | Hours elapsed since the last filter reset |
 | Remaining filter runtime | Sensor | Hours remaining before filter maintenance is due |
 | Maximum filter runtime | Diagnostic sensor | Configured filter maintenance interval |
 | Filter replacement required | Diagnostic binary sensor | Indicates that filter maintenance is due |
 | Fault | Diagnostic binary sensor | Indicates a currently reported device fault |
 | Signal strength | Diagnostic sensor | Radio signal strength between the unit and ConnectBox |
+| Level at home, asleep, away, frost protection | Configuration select | Configured level of the unit's room for each situation of the official app |
+| Temporary change until | Sensor | End of a temporary change, such as a level changed on the unit's control panel; unknown while none is active |
+| Boost until | Sensor | End of a running boost; unknown while none is running |
+| Summer ventilation role | Diagnostic sensor | Whether the unit supplies, exhausts, or supplies and exhausts air during the summer ventilation, as set in the official app; created when a ComfoSpot 50 reports it |
 | Reset filter timer | Configuration button | Resets the filter counter after filter maintenance; currently verified for ComfoSpot 50 |
 
 The ventilation fan entity provides Home Assistant's standard power and speed
@@ -153,8 +164,15 @@ If an earlier version already created an extract-air temperature entity and it
 remains unavailable after updating, remove the stale entity from Home
 Assistant's entity registry under **Settings → Devices & services → Entities**.
 
-Firmware updates, installer-only settings, and unverified functions such as a
-temporary boost mode are deliberately not exposed.
+Firmware updates, installer-only settings, and unverified functions such as
+starting a boost are deliberately not exposed. A boost started in the official
+app is shown.
+
+Supply-only operation is switched on and off at the unit itself: in levels 1–4,
+touch (+) for about five seconds. Below an outdoor temperature of 13 °C, the
+unit switches the exhaust fan back on. Home Assistant shows the operation but
+cannot switch it. The ConnectBox confirms a write of the unit's exhaust-fan
+flag, but the unit does not change.
 
 <img src="docs/images/comfospot50-entities.png" alt="ComfoSpot 50 entities in Home Assistant" width="430">
 
