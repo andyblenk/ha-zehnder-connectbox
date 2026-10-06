@@ -360,6 +360,8 @@ class ConnectBoxClient:
             )
             if mode == active_mode:
                 self._wait_for_room_level(room_id, level)
+            else:
+                self._wait_for_configured_level(room_id, mode, level)
             return self.read_snapshot(refresh_properties=False)
         except (ProtocolError, TransportError):
             self.close()
@@ -421,6 +423,29 @@ class ConnectBoxClient:
                 return
             if time.monotonic() >= deadline:
                 return
+            time.sleep(LEVEL_SETTLE_POLL_INTERVAL)
+
+    def _wait_for_configured_level(
+        self, room_id: int, temperature_mode: int, level: int
+    ) -> None:
+        """Confirm a level written for a situation that is not active."""
+        deadline = time.monotonic() + LEVEL_SETTLE_TIMEOUT
+        while True:
+            room = next(
+                (item for item in self._read_rooms() if item.room_id == room_id),
+                None,
+            )
+            if room is None:
+                raise ProtocolError("room is no longer available")
+            if any(
+                value.temperature_mode == temperature_mode and value.level == level
+                for value in room.ventilation
+            ):
+                return
+            if time.monotonic() >= deadline:
+                raise ProtocolError(
+                    "gateway did not report the configured situation level"
+                )
             time.sleep(LEVEL_SETTLE_POLL_INTERVAL)
 
     def reset_filter_timer(
