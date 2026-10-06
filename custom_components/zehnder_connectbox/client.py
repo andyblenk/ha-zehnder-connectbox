@@ -29,6 +29,7 @@ from .models import (
 from .profiles import (
     PropertySpec,
     is_supported,
+    fan_state_property_specs_for_device,
     optional_property_specs_for_device,
     property_specs_for_device,
     supports_sensor_mode,
@@ -98,6 +99,7 @@ class ConnectBoxClient:
         ] = {}
         self._fully_requested_devices: set[tuple[int, int, int | None]] = set()
         self._rejected_optional_devices: set[tuple[int, int, int | None]] = set()
+        self._rejected_fan_state_devices: set[tuple[int, int, int | None]] = set()
 
     @classmethod
     def pair(
@@ -571,6 +573,7 @@ class ConnectBoxClient:
             return rooms
 
         try:
+            fan_state_devices: list[AttachedDevice] = []
             optional_devices: list[AttachedDevice] = []
             for device in devices:
                 device_key = self._property_cache_key(device)
@@ -584,6 +587,12 @@ class ConnectBoxClient:
                 )
                 self._request_properties(device, specs)
                 if (
+                    not expected_property_values
+                    and device_key not in self._rejected_fan_state_devices
+                    and fan_state_property_specs_for_device(device)
+                ):
+                    fan_state_devices.append(device)
+                if (
                     request_filter_properties
                     and not expected_property_values
                     and device_key not in self._rejected_optional_devices
@@ -596,6 +605,20 @@ class ConnectBoxClient:
             # Complete the normal property reads before an optional sequence
             # can be rejected and require a new connection.
             core_rooms = self._read_rooms()
+            for device in fan_state_devices:
+                try:
+                    self._request_properties(
+                        device, fan_state_property_specs_for_device(device)
+                    )
+                except GatewayResponseError:
+                    # As for the optional settings below: keep the completed
+                    # core telemetry and skip this unit's fan state until the
+                    # integration is reloaded.
+                    self._rejected_fan_state_devices.add(
+                        self._property_cache_key(device)
+                    )
+                    self.close()
+                    return core_rooms
             for device in optional_devices:
                 try:
                     self._request_properties(
@@ -612,7 +635,7 @@ class ConnectBoxClient:
                     return core_rooms
 
             if not expected_property_values:
-                if optional_devices:
+                if fan_state_devices or optional_devices:
                     return self._read_rooms()
                 return core_rooms
 
@@ -686,6 +709,7 @@ class ConnectBoxClient:
         }
         self._fully_requested_devices.intersection_update(connected)
         self._rejected_optional_devices.intersection_update(connected)
+        self._rejected_fan_state_devices.intersection_update(connected)
         for room in rooms:
             for device in room.devices:
                 usable = tuple(value for value in device.properties if value.value)

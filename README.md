@@ -122,6 +122,7 @@ information when reported by the gateway.
 | CO2 sensor | Diagnostic binary sensor | Whether the CO2 sensor is available |
 | Exhaust fan speed | Sensor | Exhaust fan speed in rpm |
 | Supply fan speed | Sensor | Supply fan speed in rpm |
+| Supply-only operation | Binary sensor | On while the unit runs in supply-only operation with its exhaust fan switched off; only on ComfoSpot 50 units that report it |
 | Filter runtime | Sensor | Hours elapsed since the last filter reset |
 | Remaining filter runtime | Sensor | Hours remaining before filter maintenance is due |
 | Maximum filter runtime | Diagnostic sensor | Configured filter maintenance interval |
@@ -166,6 +167,12 @@ Assistant's entity registry under **Settings → Devices & services → Entities
 Firmware updates, installer-only settings, and unverified functions such as
 starting a boost are deliberately not exposed. A boost started in the official
 app is shown.
+
+Supply-only operation is switched on and off at the unit itself: in levels 1–4,
+touch (+) for about five seconds. Below an outdoor temperature of 13 °C, the
+unit switches the exhaust fan back on. Home Assistant shows the operation but
+cannot switch it. The ConnectBox confirms a write of the unit's exhaust-fan
+flag, but the unit does not change.
 
 <img src="docs/images/comfospot50-entities.png" alt="ComfoSpot 50 entities in Home Assistant" width="430">
 
