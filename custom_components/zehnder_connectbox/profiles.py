@@ -165,7 +165,10 @@ def board_reading(device: AttachedDevice, sensor_type: int) -> int | None:
 
     Each unit reports a list of (sensor type, value) pairs in the room model:
     temperature in 0.1 °C, relative humidity in %, and CO2 in ppm. The types
-    were matched against six ComfoSpot 50 units with CO2 sensor boards.
+    were matched against six ComfoSpot 50 units with sensor boards, one of
+    them a VOC board. The VOC board reports its CO2 equivalent under the CO2
+    type and an available CO2 sensor as well, so a CO2 and a VOC board cannot
+    be told apart.
     """
     if not supports_sensor_status(device):
         return None
