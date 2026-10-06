@@ -97,6 +97,7 @@ class ConnectBoxClient:
             tuple[int, int, int | None], tuple[PropertyValue, ...]
         ] = {}
         self._fully_requested_devices: set[tuple[int, int, int | None]] = set()
+        self._rejected_optional_devices: set[tuple[int, int, int | None]] = set()
 
     @classmethod
     def pair(
@@ -570,6 +571,7 @@ class ConnectBoxClient:
             return rooms
 
         try:
+            optional_devices: list[AttachedDevice] = []
             for device in devices:
                 device_key = self._property_cache_key(device)
                 request_filter_properties = (
@@ -581,24 +583,43 @@ class ConnectBoxClient:
                     include_filter_properties=request_filter_properties,
                 )
                 self._request_properties(device, specs)
-                optional_specs = optional_property_specs_for_device(device)
-                if request_filter_properties and optional_specs:
-                    try:
-                        self._request_properties(device, optional_specs)
-                    except GatewayResponseError:
-                        # The gateway rejects a sequence with an unknown
-                        # property; keep the unit's other telemetry.
-                        self.close()
+                if (
+                    request_filter_properties
+                    and not expected_property_values
+                    and device_key not in self._rejected_optional_devices
+                    and optional_property_specs_for_device(device)
+                ):
+                    optional_devices.append(device)
                 if request_filter_properties:
                     self._fully_requested_devices.add(device_key)
 
+            # Complete the normal property reads before an optional sequence
+            # can be rejected and require a new connection.
+            core_rooms = self._read_rooms()
+            for device in optional_devices:
+                try:
+                    self._request_properties(
+                        device, optional_property_specs_for_device(device)
+                    )
+                except GatewayResponseError:
+                    # A rejected sequence may remain open on the gateway.
+                    # Keep the completed core telemetry and skip this optional
+                    # sequence until the integration is reloaded.
+                    self._rejected_optional_devices.add(
+                        self._property_cache_key(device)
+                    )
+                    self.close()
+                    return core_rooms
+
             if not expected_property_values:
-                return self._read_rooms()
+                if optional_devices:
+                    return self._read_rooms()
+                return core_rooms
 
             # A filter reset is a write and must still be verified promptly.
             deadline = time.monotonic() + PROPERTY_SETTLE_TIMEOUT
+            refreshed = core_rooms
             while True:
-                refreshed = self._read_rooms()
                 found = {
                     (device.device_id, value.key.value_identity): value.value
                     for room in refreshed
@@ -616,6 +637,7 @@ class ConnectBoxClient:
                         "gateway did not report the reset filter runtime"
                     )
                 time.sleep(0.2)
+                refreshed = self._read_rooms()
         except (ProtocolError, TransportError):
             if expected_property_values:
                 raise
@@ -663,6 +685,7 @@ class ConnectBoxClient:
             if key in connected
         }
         self._fully_requested_devices.intersection_update(connected)
+        self._rejected_optional_devices.intersection_update(connected)
         for room in rooms:
             for device in room.devices:
                 usable = tuple(value for value in device.properties if value.value)
