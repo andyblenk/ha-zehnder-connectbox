@@ -148,10 +148,11 @@ def optional_property_specs_for_device(
 # in between. The ConnectBox confirms a write of this value, but the unit does
 # not change, so it is only read.
 EXHAUST_FAN_ENABLED = PropertySpec((38, 0, 5), 1)
-# Read with every property refresh in its own sequence, so a unit that rejects
-# it keeps its telemetry. This three-item sequence was read successfully from
-# five ComfoSpot 50 units; the two neighbouring values are requested only to
-# keep that verified sequence.
+# Read with every property refresh in its own sequence after the core
+# telemetry, like the optional settings. A unit that rejects it keeps its
+# telemetry and is not asked again until the integration is reloaded. This
+# three-item sequence was read successfully from five ComfoSpot 50 units; the
+# two neighbouring values are requested only to keep that verified sequence.
 FAN_STATE_PROPERTY_SPECS = (
     EXHAUST_FAN_ENABLED,
     PropertySpec((38, 0, 6), 1),

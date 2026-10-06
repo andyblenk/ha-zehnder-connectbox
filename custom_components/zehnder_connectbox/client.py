@@ -98,6 +98,8 @@ class ConnectBoxClient:
             tuple[int, int, int | None], tuple[PropertyValue, ...]
         ] = {}
         self._fully_requested_devices: set[tuple[int, int, int | None]] = set()
+        self._rejected_optional_devices: set[tuple[int, int, int | None]] = set()
+        self._rejected_fan_state_devices: set[tuple[int, int, int | None]] = set()
 
     @classmethod
     def pair(
@@ -361,6 +363,8 @@ class ConnectBoxClient:
             )
             if mode == active_mode:
                 self._wait_for_room_level(room_id, level)
+            else:
+                self._wait_for_configured_level(room_id, mode, level)
             return self.read_snapshot(refresh_properties=False)
         except (ProtocolError, TransportError):
             self.close()
@@ -422,6 +426,29 @@ class ConnectBoxClient:
                 return
             if time.monotonic() >= deadline:
                 return
+            time.sleep(LEVEL_SETTLE_POLL_INTERVAL)
+
+    def _wait_for_configured_level(
+        self, room_id: int, temperature_mode: int, level: int
+    ) -> None:
+        """Confirm a level written for a situation that is not active."""
+        deadline = time.monotonic() + LEVEL_SETTLE_TIMEOUT
+        while True:
+            room = next(
+                (item for item in self._read_rooms() if item.room_id == room_id),
+                None,
+            )
+            if room is None:
+                raise ProtocolError("room is no longer available")
+            if any(
+                value.temperature_mode == temperature_mode and value.level == level
+                for value in room.ventilation
+            ):
+                return
+            if time.monotonic() >= deadline:
+                raise ProtocolError(
+                    "gateway did not report the configured situation level"
+                )
             time.sleep(LEVEL_SETTLE_POLL_INTERVAL)
 
     def reset_filter_timer(
@@ -546,6 +573,8 @@ class ConnectBoxClient:
             return rooms
 
         try:
+            fan_state_devices: list[AttachedDevice] = []
+            optional_devices: list[AttachedDevice] = []
             for device in devices:
                 device_key = self._property_cache_key(device)
                 request_filter_properties = (
@@ -557,32 +586,63 @@ class ConnectBoxClient:
                     include_filter_properties=request_filter_properties,
                 )
                 self._request_properties(device, specs)
-                fan_state_specs = fan_state_property_specs_for_device(device)
-                if fan_state_specs:
-                    try:
-                        self._request_properties(device, fan_state_specs)
-                    except GatewayResponseError:
-                        # Keep the unit's other telemetry, as for the
-                        # optional settings below.
-                        self.close()
-                optional_specs = optional_property_specs_for_device(device)
-                if request_filter_properties and optional_specs:
-                    try:
-                        self._request_properties(device, optional_specs)
-                    except GatewayResponseError:
-                        # The gateway rejects a sequence with an unknown
-                        # property; keep the unit's other telemetry.
-                        self.close()
+                if (
+                    not expected_property_values
+                    and device_key not in self._rejected_fan_state_devices
+                    and fan_state_property_specs_for_device(device)
+                ):
+                    fan_state_devices.append(device)
+                if (
+                    request_filter_properties
+                    and not expected_property_values
+                    and device_key not in self._rejected_optional_devices
+                    and optional_property_specs_for_device(device)
+                ):
+                    optional_devices.append(device)
                 if request_filter_properties:
                     self._fully_requested_devices.add(device_key)
 
+            # Complete the normal property reads before an optional sequence
+            # can be rejected and require a new connection.
+            core_rooms = self._read_rooms()
+            for device in fan_state_devices:
+                try:
+                    self._request_properties(
+                        device, fan_state_property_specs_for_device(device)
+                    )
+                except GatewayResponseError:
+                    # As for the optional settings below: keep the completed
+                    # core telemetry and skip this unit's fan state until the
+                    # integration is reloaded.
+                    self._rejected_fan_state_devices.add(
+                        self._property_cache_key(device)
+                    )
+                    self.close()
+                    return core_rooms
+            for device in optional_devices:
+                try:
+                    self._request_properties(
+                        device, optional_property_specs_for_device(device)
+                    )
+                except GatewayResponseError:
+                    # A rejected sequence may remain open on the gateway.
+                    # Keep the completed core telemetry and skip this optional
+                    # sequence until the integration is reloaded.
+                    self._rejected_optional_devices.add(
+                        self._property_cache_key(device)
+                    )
+                    self.close()
+                    return core_rooms
+
             if not expected_property_values:
-                return self._read_rooms()
+                if fan_state_devices or optional_devices:
+                    return self._read_rooms()
+                return core_rooms
 
             # A filter reset is a write and must still be verified promptly.
             deadline = time.monotonic() + PROPERTY_SETTLE_TIMEOUT
+            refreshed = core_rooms
             while True:
-                refreshed = self._read_rooms()
                 found = {
                     (device.device_id, value.key.value_identity): value.value
                     for room in refreshed
@@ -600,6 +660,7 @@ class ConnectBoxClient:
                         "gateway did not report the reset filter runtime"
                     )
                 time.sleep(0.2)
+                refreshed = self._read_rooms()
         except (ProtocolError, TransportError):
             if expected_property_values:
                 raise
@@ -647,6 +708,8 @@ class ConnectBoxClient:
             if key in connected
         }
         self._fully_requested_devices.intersection_update(connected)
+        self._rejected_optional_devices.intersection_update(connected)
+        self._rejected_fan_state_devices.intersection_update(connected)
         for room in rooms:
             for device in room.devices:
                 usable = tuple(value for value in device.properties if value.value)
