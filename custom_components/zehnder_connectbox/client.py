@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from dataclasses import replace
 from uuid import UUID, uuid4
 
@@ -22,10 +23,13 @@ from .models import (
     RunMode,
     RunState,
     SummerVentilationSettings,
+    TemperatureMode,
     VersionInfo,
 )
 from .profiles import (
+    PropertySpec,
     is_supported,
+    optional_property_specs_for_device,
     property_specs_for_device,
     supports_sensor_mode,
     supports_summer_ventilation,
@@ -56,6 +60,13 @@ LEVEL_SETTLE_TIMEOUT = 5.0
 LEVEL_SETTLE_POLL_INTERVAL = 0.5
 SUMMER_SETTLE_TIMEOUT = 8.0
 SUMMER_SETTLE_POLL_INTERVAL = 0.5
+COMMAND_SETTLE_TIMEOUT = 10.0
+# The app's manual mode offers the situations at home and away. The run-state
+# update carries them as the user location next to the run mode.
+SITUATION_LOCATIONS = {
+    TemperatureMode.AWAKE: 1,
+    TemperatureMode.AWAY: 2,
+}
 
 
 class PairingError(ConnectionError):
@@ -86,6 +97,7 @@ class ConnectBoxClient:
             tuple[int, int, int | None], tuple[PropertyValue, ...]
         ] = {}
         self._fully_requested_devices: set[tuple[int, int, int | None]] = set()
+        self._rejected_optional_devices: set[tuple[int, int, int | None]] = set()
 
     @classmethod
     def pair(
@@ -306,8 +318,13 @@ class ConnectBoxClient:
             self.close()
             raise
 
-    def set_level(self, room_id: int, level: int) -> GatewaySnapshot:
-        """Set one room's active fan level or sensor mode and read back the result."""
+    def set_level(
+        self, room_id: int, level: int, temperature_mode: int | None = None
+    ) -> GatewaySnapshot:
+        """Set a room's level for the active or a given situation and read back.
+
+        Without a temperature mode, the currently active situation is changed.
+        """
         if level not in VENTILATION_LEVELS and level != SENSOR_MODE_LEVEL:
             raise ValueError(
                 "ventilation level must be between 0 and 4 or sensor-controlled"
@@ -330,17 +347,65 @@ class ConnectBoxClient:
                 raise ValueError(
                     "this ventilation unit does not report a sensor board"
                 )
+            active_mode = run_state.temperature_mode
+            mode = active_mode if temperature_mode is None else temperature_mode
+            if temperature_mode is not None and mode not in {
+                value.temperature_mode for value in room.ventilation
+            }:
+                raise ValueError("the room has no value for this situation")
             session = self._connected_session()
             session.request(
                 OperationType.SET_ROOM_VALUE_REQUEST,
                 OperationType.SET_ROOM_VALUE_CONFIRM,
-                encode_room_level(room, run_state.temperature_mode, level),
+                encode_room_level(room, mode, level),
             )
-            self._wait_for_room_level(room_id, level)
+            if mode == active_mode:
+                self._wait_for_room_level(room_id, level)
+            else:
+                self._wait_for_configured_level(room_id, mode, level)
             return self.read_snapshot(refresh_properties=False)
         except (ProtocolError, TransportError):
             self.close()
             raise
+
+    def set_situation(self, temperature_mode: int) -> GatewaySnapshot:
+        """Select a situation of the manual mode and confirm it was applied."""
+        location = SITUATION_LOCATIONS.get(TemperatureMode(temperature_mode))
+        if location is None:
+            raise ValueError("only the situations at home and away can be selected")
+        try:
+            self._connected_session().request(
+                OperationType.SET_RUN_STATE_REQUEST,
+                OperationType.SET_RUN_STATE_CONFIRM,
+                encode_run_state(int(RunMode.MANUAL), location),
+            )
+            run_state = self._wait_for(
+                self._read_run_state,
+                lambda state: state.run_mode == RunMode.MANUAL
+                and state.temperature_mode == temperature_mode,
+            )
+            if (
+                run_state.run_mode != RunMode.MANUAL
+                or run_state.temperature_mode != temperature_mode
+            ):
+                raise ProtocolError(
+                    "gateway reported run mode "
+                    f"{run_state.run_mode} and situation {run_state.temperature_mode}"
+                )
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    @staticmethod
+    def _wait_for[T](read: Callable[[], T], condition: Callable[[T], bool]) -> T:
+        """Poll a gateway value until it meets the condition or time runs out."""
+        deadline = time.monotonic() + COMMAND_SETTLE_TIMEOUT
+        while True:
+            value = read()
+            if condition(value) or time.monotonic() >= deadline:
+                return value
+            time.sleep(LEVEL_SETTLE_POLL_INTERVAL)
 
     def _wait_for_room_level(self, room_id: int, level: int) -> None:
         """Briefly wait until the room's current level reports a written value.
@@ -359,6 +424,29 @@ class ConnectBoxClient:
                 return
             if time.monotonic() >= deadline:
                 return
+            time.sleep(LEVEL_SETTLE_POLL_INTERVAL)
+
+    def _wait_for_configured_level(
+        self, room_id: int, temperature_mode: int, level: int
+    ) -> None:
+        """Confirm a level written for a situation that is not active."""
+        deadline = time.monotonic() + LEVEL_SETTLE_TIMEOUT
+        while True:
+            room = next(
+                (item for item in self._read_rooms() if item.room_id == room_id),
+                None,
+            )
+            if room is None:
+                raise ProtocolError("room is no longer available")
+            if any(
+                value.temperature_mode == temperature_mode and value.level == level
+                for value in room.ventilation
+            ):
+                return
+            if time.monotonic() >= deadline:
+                raise ProtocolError(
+                    "gateway did not report the configured situation level"
+                )
             time.sleep(LEVEL_SETTLE_POLL_INTERVAL)
 
     def reset_filter_timer(
@@ -483,6 +571,7 @@ class ConnectBoxClient:
             return rooms
 
         try:
+            optional_devices: list[AttachedDevice] = []
             for device in devices:
                 device_key = self._property_cache_key(device)
                 request_filter_properties = (
@@ -493,32 +582,44 @@ class ConnectBoxClient:
                     device,
                     include_filter_properties=request_filter_properties,
                 )
-                for index, spec in enumerate(specs):
-                    if index == 0:
-                        command = PropertySequenceCommand.START
-                    elif index == len(specs) - 1:
-                        command = PropertySequenceCommand.FINISH
-                    else:
-                        command = PropertySequenceCommand.CONTINUE
-                    self._connected_session().request(
-                        OperationType.DEVICE_PROPERTIES_REQUEST,
-                        OperationType.DEVICE_PROPERTIES_CONFIRM,
-                        encode_property_request(
-                            command,
-                            device.device_id,
-                            spec.request_key(device.product_type),
-                        ),
-                    )
+                self._request_properties(device, specs)
+                if (
+                    request_filter_properties
+                    and not expected_property_values
+                    and device_key not in self._rejected_optional_devices
+                    and optional_property_specs_for_device(device)
+                ):
+                    optional_devices.append(device)
                 if request_filter_properties:
                     self._fully_requested_devices.add(device_key)
 
+            # Complete the normal property reads before an optional sequence
+            # can be rejected and require a new connection.
+            core_rooms = self._read_rooms()
+            for device in optional_devices:
+                try:
+                    self._request_properties(
+                        device, optional_property_specs_for_device(device)
+                    )
+                except GatewayResponseError:
+                    # A rejected sequence may remain open on the gateway.
+                    # Keep the completed core telemetry and skip this optional
+                    # sequence until the integration is reloaded.
+                    self._rejected_optional_devices.add(
+                        self._property_cache_key(device)
+                    )
+                    self.close()
+                    return core_rooms
+
             if not expected_property_values:
-                return self._read_rooms()
+                if optional_devices:
+                    return self._read_rooms()
+                return core_rooms
 
             # A filter reset is a write and must still be verified promptly.
             deadline = time.monotonic() + PROPERTY_SETTLE_TIMEOUT
+            refreshed = core_rooms
             while True:
-                refreshed = self._read_rooms()
                 found = {
                     (device.device_id, value.key.value_identity): value.value
                     for room in refreshed
@@ -536,6 +637,7 @@ class ConnectBoxClient:
                         "gateway did not report the reset filter runtime"
                     )
                 time.sleep(0.2)
+                refreshed = self._read_rooms()
         except (ProtocolError, TransportError):
             if expected_property_values:
                 raise
@@ -543,6 +645,27 @@ class ConnectBoxClient:
             # and reconnect on the next coordinator refresh.
             self.close()
             return rooms
+
+    def _request_properties(
+        self, device: AttachedDevice, specs: tuple[PropertySpec, ...]
+    ) -> None:
+        """Request one bounded property sequence for a unit."""
+        for index, spec in enumerate(specs):
+            if index == 0:
+                command = PropertySequenceCommand.START
+            elif index == len(specs) - 1:
+                command = PropertySequenceCommand.FINISH
+            else:
+                command = PropertySequenceCommand.CONTINUE
+            self._connected_session().request(
+                OperationType.DEVICE_PROPERTIES_REQUEST,
+                OperationType.DEVICE_PROPERTIES_CONFIRM,
+                encode_property_request(
+                    command,
+                    device.device_id,
+                    spec.request_key(device.product_type),
+                ),
+            )
 
     @staticmethod
     def _property_cache_key(device: AttachedDevice) -> tuple[int, int, int | None]:
@@ -562,6 +685,7 @@ class ConnectBoxClient:
             if key in connected
         }
         self._fully_requested_devices.intersection_update(connected)
+        self._rejected_optional_devices.intersection_update(connected)
         for room in rooms:
             for device in room.devices:
                 usable = tuple(value for value in device.properties if value.value)
