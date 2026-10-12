@@ -122,6 +122,7 @@ information when reported by the gateway.
 | CO2 sensor | Diagnostic binary sensor | Whether the CO2 sensor is available |
 | Exhaust fan speed | Sensor | Exhaust fan speed in rpm |
 | Supply fan speed | Sensor | Supply fan speed in rpm |
+| Airflow mode (experimental) | Select, enabled by default | Request normal or supply-only operation; one ComfoSpot 50 per room with reported fan status; physical actuation still needs validation |
 | Supply-only operation | Binary sensor | On while the unit runs in supply-only operation with its exhaust fan switched off; only on ComfoSpot 50 units that report it |
 | Filter runtime | Sensor | Hours elapsed since the last filter reset |
 | Remaining filter runtime | Sensor | Hours remaining before filter maintenance is due |
@@ -164,15 +165,31 @@ If an earlier version already created an extract-air temperature entity and it
 remains unavailable after updating, remove the stale entity from Home
 Assistant's entity registry under **Settings → Devices & services → Entities**.
 
-Firmware updates, installer-only settings, and unverified functions such as
-starting a boost are deliberately not exposed. A boost started in the official
-app is shown.
+Firmware updates, installer-only settings and starting a boost are not exposed.
+A boost started in the official app is shown.
 
-Supply-only operation is switched on and off at the unit itself: in levels 1–4,
-touch (+) for about five seconds. Below an outdoor temperature of 13 °C, the
-unit switches the exhaust fan back on. Home Assistant shows the operation but
-cannot switch it. The ConnectBox confirms a write of the unit's exhaust-fan
-flag, but the unit does not change.
+This branch adds an experimental **Airflow mode** select for a room containing
+exactly one ComfoSpot 50 with readable fan status. It is enabled by default and
+offers **Supply only** and **Supply and exhaust**.
+Starting supply-only requires manual operation (At home or Away), level 1–4,
+and no standby, active summer ventilation or boost. The command preserves the
+operating mode and configured fan levels. Normal mode remains selectable for
+restoration when these starting conditions no longer apply.
+
+The select shows the mode read back from the ConnectBox; missing mode data
+remains unknown. It does not confirm physical fan stoppage. **Supply-only
+operation** continues to show the separate exhaust-fan enable status. The
+command and mode read-back have been tested, but physical actuation, all levels,
+reconnect behaviour and effects on other units still require hardware testing
+before release. The feature is enabled on this branch for the upcoming testing.
+
+On the unit itself, supply-only can be toggled by touching (+) for about five
+seconds at levels 1–4. Zehnder states that below **13 °C outdoor temperature**,
+the extract fan is activated again in supply-only mode. See the
+[ComfoSpot 50 user and installer manual, page 11](https://zehnder-systems-si.zendesk.com/hc/en-us/article_attachments/4417579670545#page=11).
+The experimental control does not bypass this behaviour; a reported supply-only
+mode can coexist with a running exhaust fan. Testing above this threshold is
+needed to check the physical effect.
 
 <img src="docs/images/comfospot50-entities.png" alt="ComfoSpot 50 entities in Home Assistant" width="430">
 

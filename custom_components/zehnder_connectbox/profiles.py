@@ -179,6 +179,16 @@ def supply_only_operation(device: AttachedDevice) -> bool | None:
     return None
 
 
+def airflow_control_eligible(room: Room, device: AttachedDevice) -> bool:
+    """Limit experimental room control to one identified ComfoSpot 50."""
+    return (
+        len(room.devices) == 1
+        and room.devices[0].device_id == device.device_id
+        and supports_sensor_status(device)
+        and supply_only_operation(device) is not None
+    )
+
+
 def summer_ventilation_role(device: AttachedDevice) -> str | None:
     """Return the unit's role in the summer ventilation, if reported."""
     if not supports_sensor_status(device):

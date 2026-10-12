@@ -186,6 +186,15 @@
           "antifreeze": "Frostschutz",
           "override": "Vorübergehend geändert"
         }
+      },
+      "airflow_mode": {
+        "name": "Luftstrommodus",
+        "state": {
+          "normal": "Zu- und Abluft",
+          "supply_only": "Nur Zuluft",
+          "exhaust_only": "Nur Abluft",
+          "summer": "Sommerlüftung"
+        }
       }
     },
     "sensor": {

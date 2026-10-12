@@ -7,6 +7,15 @@ from enum import IntEnum
 from uuid import UUID
 
 
+class AirflowMode(IntEnum):
+    """Room airflow modes reported by the gateway."""
+
+    NORMAL = 0
+    SUPPLY_ONLY = 1
+    EXHAUST_ONLY = 2
+    SUMMER = 3
+
+
 class RunMode(IntEnum):
     """ConnectBox operating modes."""
 
@@ -175,6 +184,8 @@ class Room:
     """Unix time at which the room's active boost ends."""
     boost_duration: int | None = None
     """Configured boost duration in minutes."""
+    airflow_mode: AirflowMode | None = None
+    """Reported room mode, separate from actual fan activity."""
 
     def boost_active(self, now: float) -> bool:
         """Return whether a boost is running at the given Unix time."""

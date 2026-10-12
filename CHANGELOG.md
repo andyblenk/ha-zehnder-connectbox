@@ -16,8 +16,19 @@ project follows [Semantic Versioning](https://semver.org/).
 - Show when a room's running boost ends.
 - Show the role of each ComfoSpot 50 in the summer ventilation (supply,
   exhaust, or both).
-- Show when a ComfoSpot 50 runs in supply-only operation, switched on at the
-  unit's control panel. The operation can only be read, not switched (#1).
+- Show when a ComfoSpot 50 runs in supply-only operation with its exhaust
+  fan switched off (#1).
+- Add an experimental, enabled-by-default airflow select for a ComfoSpot 50
+  in a single-unit room: normal or supply-only, with gateway read-back and
+  separate actual fan status. Physical actuation, all levels and multiple-unit
+  scope still need hardware validation before release (#1).
+
+### Documentation
+
+- Document Zehnder's ComfoSpot 50 rule: below 13 °C outdoor temperature, the
+  extract fan is activated again during supply-only mode. A reported supply-only
+  mode therefore does not guarantee a stopped exhaust fan. See the
+  [Zehnder user and installer manual, page 11](https://zehnder-systems-si.zendesk.com/hc/en-us/article_attachments/4417579670545#page=11).
 
 ## [0.3.0-beta.2] - 2026-10-01 (pre-release)
 

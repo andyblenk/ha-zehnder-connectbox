@@ -147,6 +147,11 @@ async def async_get_config_entry_diagnostics(
                 "exhaust_fan_speed": EXHAUST_FAN_SPEED.value(device),
                 "supply_fan_speed": SUPPLY_FAN_SPEED.value(device),
                 "supply_only_operation": supply_only_operation(device),
+                "reported_airflow_mode": (
+                    room.airflow_mode.name.lower()
+                    if room.airflow_mode is not None
+                    else None
+                ),
             }
             for room in snapshot.rooms
             for device in room.devices

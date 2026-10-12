@@ -9,6 +9,7 @@ from uuid import UUID
 
 from .const import SENSOR_MODE_LEVEL, VENTILATION_LEVELS
 from .models import (
+    AirflowMode,
     AttachedDevice,
     PropertyKey,
     PropertyValue,
@@ -71,6 +72,8 @@ class OperationType(IntEnum):
     RUN_STATE_CONFIRM = 241
     SET_RUN_STATE_REQUEST = 243
     SET_RUN_STATE_CONFIRM = 244
+    SET_AIRFLOW_MODE_REQUEST = 352
+    SET_AIRFLOW_MODE_CONFIRM = 353
     SUMMER_VENTILATION_REQUEST = 354
     SUMMER_VENTILATION_CONFIRM = 355
     SET_SUMMER_VENTILATION_REQUEST = 356
@@ -288,7 +291,44 @@ def _decode_room(message: bytes) -> Room:
         temporary_until=uint_value(fields, ROOM_TEMPORARY_UNTIL) or None,
         boost_until=uint_value(fields, ROOM_BOOST_UNTIL) or None,
         boost_duration=uint_value(fields, ROOM_BOOST_DURATION),
+        airflow_mode=_decode_airflow_mode(fields),
     )
+
+
+def _decode_airflow_mode(fields: tuple[Field, ...]) -> AirflowMode | None:
+    """Read event 38 without treating an absent or ambiguous value as normal."""
+    modes: list[AirflowMode] = []
+    for record in bytes_values(fields, 101):
+        try:
+            values = decode_fields(record)
+            key = bytes_value(values, 1)
+            if key is None or uint_value(decode_fields(key), 1) != 38:
+                continue
+            value = bytes_value(values, 2)
+            if value is None or not 1 <= len(value) <= 8:
+                return None
+            modes.append(AirflowMode(value[0]))
+        except (ValueError, ProtocolError):
+            return None
+    return modes[0] if len(modes) == 1 else None
+
+
+def encode_airflow_mode(room_id: int, mode: AirflowMode) -> bytes:
+    """Set one room's airflow event with a single-byte normal/supply value."""
+    if (
+        isinstance(room_id, bool)
+        or not isinstance(room_id, int)
+        or not 0 <= room_id <= 255
+    ):
+        raise ValueError("invalid airflow room ID")
+    if (
+        isinstance(mode, bool)
+        or not isinstance(mode, int)
+        or mode not in (AirflowMode.NORMAL, AirflowMode.SUPPLY_ONLY)
+    ):
+        raise ValueError("only normal and supply-only airflow can be selected")
+    record = encode_bytes(1, encode_uint(1, 38)) + encode_bytes(2, bytes((mode,)))
+    return encode_uint(1, room_id) + encode_bytes(2, record)
 
 
 def _decode_ventilation(message: bytes) -> VentilationValue:

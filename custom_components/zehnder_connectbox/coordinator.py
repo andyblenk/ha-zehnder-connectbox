@@ -23,7 +23,7 @@ from .const import (
     POLL_INTERVAL,
     PROPERTY_REFRESH_INTERVAL,
 )
-from .models import GatewaySnapshot, RunMode
+from .models import AirflowMode, GatewaySnapshot, RunMode
 from .profiles import FILTER_RUNTIME, format_version, product_name
 from .protocol import ProtocolError
 from .transport import CertificateMismatchError, TransportError
@@ -106,6 +106,15 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
             snapshot = await self.hass.async_add_executor_job(
                 self.client.set_level, room_id, level, temperature_mode
             )
+        self._accept_command_snapshot(snapshot)
+
+    async def async_set_airflow_mode(self, device_id: int, mode: AirflowMode) -> None:
+        """Set a reported airflow mode and refresh actual fan telemetry."""
+        async with self._io_lock:
+            snapshot = await self.hass.async_add_executor_job(
+                self.client.set_airflow_mode, device_id, mode
+            )
+        self._last_property_refresh = time.monotonic()
         self._accept_command_snapshot(snapshot)
 
     async def async_set_situation(self, temperature_mode: int) -> None:

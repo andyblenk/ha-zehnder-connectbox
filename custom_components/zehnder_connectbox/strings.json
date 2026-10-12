@@ -186,6 +186,15 @@
           "antifreeze": "Frost protection",
           "override": "Temporary change"
         }
+      },
+      "airflow_mode": {
+        "name": "Airflow mode",
+        "state": {
+          "normal": "Supply and exhaust",
+          "supply_only": "Supply only",
+          "exhaust_only": "Exhaust only",
+          "summer": "Summer ventilation"
+        }
       }
     },
     "sensor": {

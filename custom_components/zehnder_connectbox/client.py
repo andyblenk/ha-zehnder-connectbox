@@ -14,6 +14,7 @@ from .const import (
     VENTILATION_LEVELS,
 )
 from .models import (
+    AirflowMode,
     AttachedDevice,
     GatewaySnapshot,
     PairingData,
@@ -28,8 +29,9 @@ from .models import (
 )
 from .profiles import (
     PropertySpec,
-    is_supported,
+    airflow_control_eligible,
     fan_state_property_specs_for_device,
+    is_supported,
     optional_property_specs_for_device,
     property_specs_for_device,
     supports_sensor_mode,
@@ -44,6 +46,7 @@ from .protocol import (
     decode_run_state,
     decode_summer_ventilation_settings,
     decode_version,
+    encode_airflow_mode,
     encode_filter_reset_room,
     encode_pairing,
     encode_property_request,
@@ -171,6 +174,81 @@ class ConnectBoxClient:
             rooms = self._restore_device_properties(rooms)
             self._remember_device_properties(rooms)
             return GatewaySnapshot(version, run_state, rooms, summer_settings)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_airflow_mode(self, device_id: int, mode: AirflowMode) -> GatewaySnapshot:
+        """Set an experimental room mode and verify its reported state.
+
+        Read-back confirms the requested mode, not physical fan stoppage.
+        The unit can keep its extract fan running below 13 degrees outdoors.
+        """
+        if (
+            isinstance(mode, bool)
+            or not isinstance(mode, int)
+            or mode not in (AirflowMode.NORMAL, AirflowMode.SUPPLY_ONLY)
+        ):
+            raise ValueError("only normal and supply-only airflow can be selected")
+        try:
+            before = self.read_snapshot(refresh_properties=True)
+            result = before.find_device(device_id)
+            if result is None:
+                raise ProtocolError("device is no longer available")
+            room, device = result
+            if (
+                not airflow_control_eligible(room, device)
+                or self._property_cache_key(device) in self._rejected_fan_state_devices
+            ):
+                raise ProtocolError(
+                    "airflow control requires one ComfoSpot 50 per room with fan status"
+                )
+            state = before.run_state
+            if mode == AirflowMode.SUPPLY_ONLY and (
+                state.run_mode != RunMode.MANUAL
+                or state.temperature_mode not in (
+                    TemperatureMode.AWAKE,
+                    TemperatureMode.AWAY,
+                )
+                or state.standby is not False
+                or state.summer_ventilation is not False
+                or room.current_level(state.temperature_mode) not in (1, 2, 3, 4)
+                or room.boost_active(time.time())
+            ):
+                raise ProtocolError(
+                    "supply-only requires manual operation at level 1–4 "
+                    "without standby, summer ventilation or boost"
+                )
+            if room.airflow_mode != mode:
+                self._connected_session().request(
+                    OperationType.SET_AIRFLOW_MODE_REQUEST,
+                    OperationType.SET_AIRFLOW_MODE_CONFIRM,
+                    encode_airflow_mode(room.room_id, mode),
+                )
+                rooms = self._wait_for(
+                    self._read_rooms,
+                    lambda rooms: any(
+                        item.room_id == room.room_id and item.airflow_mode == mode
+                        for item in rooms
+                    ),
+                )
+                if not any(
+                    item.room_id == room.room_id and item.airflow_mode == mode
+                    for item in rooms
+                ):
+                    raise ProtocolError(
+                        "gateway did not report the requested airflow mode"
+                    )
+            after = self.read_snapshot(refresh_properties=True)
+            confirmed = after.find_device(device_id)
+            if (
+                confirmed is None
+                or confirmed[0].room_id != room.room_id
+                or not airflow_control_eligible(*confirmed)
+                or confirmed[0].airflow_mode != mode
+            ):
+                raise ProtocolError("airflow mode read-back could not be confirmed")
+            return after
         except (ProtocolError, TransportError):
             self.close()
             raise

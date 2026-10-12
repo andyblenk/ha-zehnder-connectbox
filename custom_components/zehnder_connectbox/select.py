@@ -1,4 +1,4 @@
-"""Operating-mode, situation and per-situation level selects."""
+"""Operating-mode, situation, level and experimental airflow selects."""
 
 from __future__ import annotations
 
@@ -13,8 +13,19 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID, SENSOR_MODE_LEVEL
 from .entity import ConnectBoxDeviceEntity, ConnectBoxGatewayEntity
-from .models import RunMode, TemperatureMode
-from .profiles import is_supported, supports_sensor_mode
+from .models import AirflowMode, RunMode, TemperatureMode
+from .profiles import airflow_control_eligible, is_supported, supports_sensor_mode
+
+AIRFLOW_TO_OPTION = {
+    AirflowMode.NORMAL: "normal",
+    AirflowMode.SUPPLY_ONLY: "supply_only",
+    AirflowMode.EXHAUST_ONLY: "exhaust_only",
+    AirflowMode.SUMMER: "summer",
+}
+SELECTABLE_AIRFLOW = {
+    "normal": AirflowMode.NORMAL,
+    "supply_only": AirflowMode.SUPPLY_ONLY,
+}
 
 MODE_TO_OPTION = {
     RunMode.AUTOMATIC: "automatic",
@@ -59,23 +70,32 @@ async def async_setup_entry(
     entry: ZehnderConnectBoxConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up the run-mode and situation selects and the level selects."""
+    """Set up gateway selects and dynamically add eligible room controls."""
     coordinator = entry.runtime_data
     async_add_entities(
         [ConnectBoxOperatingMode(coordinator), ConnectBoxSituation(coordinator)]
     )
     known: set[tuple[int, int]] = set()
+    known_airflow: set[int] = set()
 
     @callback
     def add_new_entities() -> None:
         if coordinator.data is None:
             return
-        new_entities: list[ConnectBoxSituationLevel] = []
+        new_entities: list[SelectEntity] = []
         for room in coordinator.data.rooms:
             modes = {value.temperature_mode for value in room.ventilation}
             for device in room.devices:
                 if not is_supported(device):
                     continue
+                if (
+                    device.device_id not in known_airflow
+                    and airflow_control_eligible(room, device)
+                ):
+                    new_entities.append(
+                        ConnectBoxAirflowMode(coordinator, device.device_id)
+                    )
+                    known_airflow.add(device.device_id)
                 for mode in SITUATIONS:
                     identity = (device.device_id, int(mode))
                     if identity in known or int(mode) not in modes:
@@ -89,6 +109,55 @@ async def async_setup_entry(
 
     add_new_entities()
     entry.async_on_unload(coordinator.async_add_listener(add_new_entities))
+
+
+class ConnectBoxAirflowMode(ConnectBoxDeviceEntity, SelectEntity):
+    """Experimental room airflow request, separate from physical fan status."""
+
+    _attr_translation_key = "airflow_mode"
+    _attr_entity_registry_enabled_default = True
+
+    def __init__(self, coordinator, device_id: int) -> None:
+        super().__init__(coordinator, device_id)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_{device_id}_airflow_mode"
+
+    @property
+    def available(self) -> bool:
+        """Require the same single-unit room profile on every refresh."""
+        data = self.device_data
+        return (
+            super().available
+            and data is not None
+            and airflow_control_eligible(*data)
+        )
+
+    @property
+    def current_option(self) -> str | None:
+        """Show only the gateway-reported mode; absence remains unknown."""
+        data = self.device_data
+        return AIRFLOW_TO_OPTION.get(data[0].airflow_mode) if data else None
+
+    @property
+    def options(self) -> list[str]:
+        """Include other reported modes for display only."""
+        options = list(SELECTABLE_AIRFLOW)
+        current = self.current_option
+        if current is not None and current not in options:
+            options.append(current)
+        return options
+
+    async def async_select_option(self, option: str) -> None:
+        """Request normal/supply-only without changing the run mode or level."""
+        if option not in SELECTABLE_AIRFLOW:
+            raise ServiceValidationError(
+                "Only normal and supply-only airflow can be selected"
+            )
+        if not self.available:
+            raise ServiceValidationError("Airflow control is unavailable for this device")
+        await self.coordinator.async_set_airflow_mode(
+            self.device_id, SELECTABLE_AIRFLOW[option]
+        )
 
 
 class ConnectBoxOperatingMode(ConnectBoxGatewayEntity, SelectEntity):
