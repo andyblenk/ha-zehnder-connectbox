@@ -1,0 +1,74 @@
+{
+  "entity": {
+    "fan": {
+      "ventilation": {
+        "default": "mdi:fan",
+        "state": {
+          "off": "mdi:fan-off"
+        },
+        "state_attributes": {
+          "preset_mode": {
+            "default": "mdi:fan",
+            "state": {
+              "level_1": "mdi:fan-speed-1",
+              "level_2": "mdi:fan-speed-2",
+              "level_3": "mdi:fan-speed-3",
+              "level_4": "mdi:fan-chevron-up",
+              "auto": "mdi:fan-auto"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "fan_status": {
+        "default": "mdi:fan",
+        "state": {
+          "off": "mdi:fan-off",
+          "standby": "mdi:pause-circle-outline",
+          "level_1": "mdi:fan-speed-1",
+          "level_2": "mdi:fan-speed-2",
+          "level_3": "mdi:fan-speed-3",
+          "level_4": "mdi:fan-chevron-up",
+          "auto": "mdi:fan-auto",
+          "boost": "mdi:fan-plus",
+          "summer_ventilation": "mdi:sun-snowflake-variant"
+        }
+      },
+      "supply_fan_speed": {
+        "default": "mdi:fan"
+      },
+      "exhaust_fan_speed": {
+        "default": "mdi:fan"
+      },
+      "temporary_until": {
+        "default": "mdi:timer-sand"
+      },
+      "boost_until": {
+        "default": "mdi:fan-clock"
+      },
+      "filter_runtime": {
+        "default": "mdi:air-filter"
+      },
+      "filter_remaining": {
+        "default": "mdi:air-filter"
+      },
+      "filter_maximum": {
+        "default": "mdi:air-filter"
+      }
+    },
+    "binary_sensor": {
+      "supply_only": {
+        "default": "mdi:arrow-collapse-right",
+        "state": {
+          "on": "mdi:arrow-right-bold"
+        }
+      }
+    },
+    "button": {
+      "reset_filter_timer": {
+        "default": "mdi:air-filter"
+      }
+    }
+  }
+}

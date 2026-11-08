@@ -53,6 +53,20 @@ project follows [Semantic Versioning](https://semver.org/).
   exhaust, or both).
 - Show when a ComfoSpot 50 runs in supply-only operation, switched on at the
   unit's control panel. The operation can only be read, not switched (#1).
+- Add a fan status sensor per unit that shows what the unit is doing right
+  now (central off, standby, level 1–4, sensor mode, boost, summer
+  ventilation) with a matching icon, and carries the level, situation, fan
+  speeds, supply-only operation, end times and active fault codes as
+  attributes for dashboards.
+- List the active fault codes on the fault sensor.
+- Add icons for the ventilation levels, fan speeds, filter values and end
+  times.
+
+### Changed
+
+- **Breaking:** the ventilation presets are now `level_1` to `level_4` and
+  `auto`, so the frontend shows them translated ("Stufe 1" …). Automations
+  that call `fan.set_preset_mode` with `Level 1` to `Level 4` must be updated.
 
 ### Changed
 
