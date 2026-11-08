@@ -14,7 +14,6 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
-    CONCENTRATION_PARTS_PER_MILLION,
     PERCENTAGE,
     EntityCategory,
     UnitOfTemperature,
@@ -46,6 +45,15 @@ from .profiles import (
     temperature_value,
 )
 from .status import FAN_STATUS_OPTIONS, error_codes, fan_status, situation
+
+try:
+    from homeassistant.const import UnitOfRatio
+
+    PARTS_PER_MILLION = UnitOfRatio.PARTS_PER_MILLION
+except ImportError:  # older Home Assistant without UnitOfRatio
+    from homeassistant.const import (
+        CONCENTRATION_PARTS_PER_MILLION as PARTS_PER_MILLION,
+    )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -117,7 +125,7 @@ SENSORS = (
         key="co2",
         translation_key="co2",
         device_class=SensorDeviceClass.CO2,
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        native_unit_of_measurement=PARTS_PER_MILLION,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda device: board_reading(device, SENSOR_TYPE_CO2),
         exists_fn=lambda device: board_reading(device, SENSOR_TYPE_CO2) is not None,

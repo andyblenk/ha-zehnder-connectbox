@@ -64,12 +64,18 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Stop passing the deprecated `via_device` device information and use
+  `UnitOfRatio.PARTS_PER_MILLION` for CO2, both removed in Home Assistant
+  2027.8. The link to the ConnectBox is still set when devices are registered.
 - Report the filter runtime, remaining runtime and maintenance interval in
   days instead of hours; the unit counts days (for example a 90-day
   interval).
 
 ### Changed
 
+- Remove the temporary capture build from diagnostics (raw run state, room
+  fields and the app's property scan); diagnostics are back to the decoded
+  values.
 - Show the ventilation levels with numbered icons (1–4), clearly apart from
   the sensor-controlled `auto` preset.
 - **Breaking:** the ventilation presets are now `level_1` to `level_4` and
