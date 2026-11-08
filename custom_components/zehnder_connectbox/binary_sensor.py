@@ -29,6 +29,7 @@ from .profiles import (
     supply_only_operation,
     supports_sensor_status,
 )
+from .status import error_codes
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -147,6 +148,16 @@ class ConnectBoxBinarySensor(ConnectBoxDeviceEntity, BinarySensorEntity):
         if self.entity_description.kind == "filter":
             return has_filter_warning(device)
         return has_fault(device)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """List the active fault codes on the fault indicator."""
+        if self.entity_description.kind != "fault":
+            return None
+        data = self.device_data
+        if data is None:
+            return None
+        return {"error_codes": error_codes(data[1])}
 
     @property
     def available(self) -> bool:

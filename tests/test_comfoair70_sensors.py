@@ -199,7 +199,7 @@ class SensorEntityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(fan.preset_mode, "auto")
         self.assertIsNone(fan.percentage)
         coordinator.data = replace(coordinator.data, rooms=(room,))
-        self.assertEqual(fan.preset_mode, "Level 2")
+        self.assertEqual(fan.preset_mode, "level_2")
         self.assertEqual(fan.percentage, 50)
         coordinator.data = replace(coordinator.data, rooms=(make_room(readings=()),))
         self.assertNotIn("auto", fan.preset_modes)
