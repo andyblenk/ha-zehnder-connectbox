@@ -125,9 +125,9 @@ information when reported by the gateway.
 | Exhaust fan speed | Sensor | Exhaust fan speed in rpm |
 | Supply fan speed | Sensor | Supply fan speed in rpm |
 | Supply-only operation | Binary sensor | On while the unit runs in supply-only operation with its exhaust fan switched off; only on ComfoSpot 50 units that report it |
-| Filter runtime | Sensor | Hours elapsed since the last filter reset |
-| Remaining filter runtime | Sensor | Hours remaining before filter maintenance is due |
-| Maximum filter runtime | Diagnostic sensor | Configured filter maintenance interval |
+| Filter runtime | Sensor | Days elapsed since the last filter reset |
+| Remaining filter runtime | Sensor | Days remaining before filter maintenance is due |
+| Maximum filter runtime | Diagnostic sensor | Configured filter maintenance interval in days |
 | Filter replacement required | Diagnostic binary sensor | Indicates that filter maintenance is due |
 | Fault | Diagnostic binary sensor | Indicates a currently reported device fault |
 | Signal strength | Diagnostic sensor | Radio signal strength between the unit and ConnectBox |
