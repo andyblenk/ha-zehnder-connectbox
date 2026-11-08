@@ -10,10 +10,10 @@
           "preset_mode": {
             "default": "mdi:fan",
             "state": {
-              "level_1": "mdi:fan-speed-1",
-              "level_2": "mdi:fan-speed-2",
-              "level_3": "mdi:fan-speed-3",
-              "level_4": "mdi:fan-chevron-up",
+              "level_1": "mdi:numeric-1-circle-outline",
+              "level_2": "mdi:numeric-2-circle-outline",
+              "level_3": "mdi:numeric-3-circle-outline",
+              "level_4": "mdi:numeric-4-circle-outline",
               "auto": "mdi:fan-auto"
             }
           }
@@ -26,10 +26,10 @@
         "state": {
           "off": "mdi:fan-off",
           "standby": "mdi:pause-circle-outline",
-          "level_1": "mdi:fan-speed-1",
-          "level_2": "mdi:fan-speed-2",
-          "level_3": "mdi:fan-speed-3",
-          "level_4": "mdi:fan-chevron-up",
+          "level_1": "mdi:numeric-1-circle-outline",
+          "level_2": "mdi:numeric-2-circle-outline",
+          "level_3": "mdi:numeric-3-circle-outline",
+          "level_4": "mdi:numeric-4-circle-outline",
           "auto": "mdi:fan-auto",
           "boost": "mdi:fan-plus",
           "summer_ventilation": "mdi:sun-snowflake-variant"

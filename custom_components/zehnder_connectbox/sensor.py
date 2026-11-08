@@ -165,7 +165,7 @@ SENSORS = (
         key="filter_runtime",
         translation_key="filter_runtime",
         device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.HOURS,
+        native_unit_of_measurement=UnitOfTime.DAYS,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda device: (
             FILTER_RUNTIME.value(device)
@@ -177,7 +177,7 @@ SENSORS = (
         key="filter_remaining",
         translation_key="filter_remaining",
         device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.HOURS,
+        native_unit_of_measurement=UnitOfTime.DAYS,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=FILTER_REMAINING.value,
     ),
@@ -185,7 +185,7 @@ SENSORS = (
         key="filter_maximum",
         translation_key="filter_maximum",
         device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.HOURS,
+        native_unit_of_measurement=UnitOfTime.DAYS,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda device: (

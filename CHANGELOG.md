@@ -62,8 +62,16 @@ project follows [Semantic Versioning](https://semver.org/).
 - Add icons for the ventilation levels, fan speeds, filter values and end
   times.
 
+### Fixed
+
+- Report the filter runtime, remaining runtime and maintenance interval in
+  days instead of hours; the unit counts days (for example a 90-day
+  interval).
+
 ### Changed
 
+- Show the ventilation levels with numbered icons (1–4), clearly apart from
+  the sensor-controlled `auto` preset.
 - **Breaking:** the ventilation presets are now `level_1` to `level_4` and
   `auto`, so the frontend shows them translated ("Stufe 1" …). Automations
   that call `fan.set_preset_mode` with `Level 1` to `Level 4` must be updated.
