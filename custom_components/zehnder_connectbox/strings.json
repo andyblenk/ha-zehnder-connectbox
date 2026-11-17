@@ -3,13 +3,15 @@
     "abort": {
       "already_configured": "This ConnectBox is already configured.",
       "discovery_failed": "The selected ConnectBox is no longer available.",
-      "pairing_failed": "Pairing with the ConnectBox did not complete."
+      "pairing_failed": "Pairing with the ConnectBox did not complete.",
+      "wrong_gateway": "This ConnectBox does not match the existing integration entry."
     },
     "error": {
       "cannot_connect": "No ConnectBox responded at this address.",
       "invalid_pairing_name": "Enter a name between 1 and 32 UTF-8 bytes.",
       "pairing_failed": "Pairing did not complete. Try again and press the ConnectBox access-key button while its indicator is blinking.",
-      "wrong_gateway": "The address belongs to a different ConnectBox."
+      "wrong_gateway": "The address belongs to a different ConnectBox.",
+      "cannot_verify_gateway": "The ConnectBox identity at this address could not be verified."
     },
     "progress": {
       "pairing": "Pairing is in progress. Briefly press the access-key button on the ConnectBox while its indicator is blinking."
@@ -59,6 +61,14 @@
         },
         "description": "Update the local address of this ConnectBox. Its identity and trusted certificate must remain unchanged.",
         "title": "Reconfigure ConnectBox"
+      },
+      "reauth_confirm": {
+        "title": "Pair the ConnectBox again",
+        "description": "The saved certificate no longer matches the ConnectBox. Continue only if you expect this change, for example after a gateway reset. The next step requires physical pairing confirmation on the same ConnectBox. Existing devices and entities are kept.",
+        "data": {
+          "host": "IP address or hostname",
+          "pairing_name": "Name on ConnectBox"
+        }
       }
     }
   },
@@ -69,6 +79,9 @@
       }
     },
     "binary_sensor": {
+      "supply_only": {
+        "name": "Supply-only operation"
+      },
       "fault": {
         "name": "Fault"
       },
@@ -129,6 +142,60 @@
           "manual": "Manual",
           "off": "Off"
         }
+      },
+      "situation_level_awake": {
+        "name": "Level at home",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Level 1",
+          "level_2": "Level 2",
+          "level_3": "Level 3",
+          "level_4": "Level 4",
+          "auto": "Auto (sensor)"
+        }
+      },
+      "situation_level_asleep": {
+        "name": "Level asleep",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Level 1",
+          "level_2": "Level 2",
+          "level_3": "Level 3",
+          "level_4": "Level 4",
+          "auto": "Auto (sensor)"
+        }
+      },
+      "situation_level_away": {
+        "name": "Level away",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Level 1",
+          "level_2": "Level 2",
+          "level_3": "Level 3",
+          "level_4": "Level 4",
+          "auto": "Auto (sensor)"
+        }
+      },
+      "situation_level_antifreeze": {
+        "name": "Level frost protection",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Level 1",
+          "level_2": "Level 2",
+          "level_3": "Level 3",
+          "level_4": "Level 4",
+          "auto": "Auto (sensor)"
+        }
+      },
+      "situation": {
+        "name": "Situation",
+        "state": {
+          "awake": "At home",
+          "asleep": "Asleep",
+          "away": "Away",
+          "antifreeze": "Frost protection",
+          "override": "Temporary change"
+        }
       }
     },
     "sensor": {
@@ -161,6 +228,20 @@
       },
       "co2": {
         "name": "CO2"
+      },
+      "temporary_until": {
+        "name": "Temporary change until"
+      },
+      "boost_until": {
+        "name": "Boost until"
+      },
+      "summer_ventilation_role": {
+        "name": "Summer ventilation role",
+        "state": {
+          "supply_and_exhaust": "Supply and exhaust",
+          "supply": "Supply",
+          "exhaust": "Exhaust"
+        }
       }
     },
     "switch": {
@@ -178,6 +259,77 @@
       "summer_ventilation_duration": {
         "name": "Summer ventilation duration"
       }
+    }
+  },
+  "exceptions": {
+    "certificate_changed": {
+      "message": "The ConnectBox certificate has changed. Open the integration and confirm pairing again only if you expect the change."
+    },
+    "summer_not_supported": {
+      "message": "Summer ventilation is not supported by the attached units."
+    },
+    "summer_disabled": {
+      "message": "Enable the summer ventilation function in its settings or in the Zehnder app before starting an interval."
+    },
+    "summer_duration_unavailable": {
+      "message": "The ConnectBox does not report a valid summer ventilation duration. Refresh the integration and check the app settings."
+    },
+    "summer_mode_unavailable": {
+      "message": "Summer ventilation is only available in automatic or manual operation."
+    },
+    "situation_unavailable": {
+      "message": "The current situation does not allow this change. Select At home or Away first."
+    },
+    "summer_state_unavailable": {
+      "message": "The current summer ventilation state is unknown. Refresh the integration before trying again."
+    },
+    "invalid_summer_configuration": {
+      "message": "Provide a valid summer ventilation function setting or duration."
+    },
+    "invalid_summer_duration": {
+      "message": "Set the summer ventilation duration to a whole number of hours between 1 and 24."
+    },
+    "summer_settings_unavailable": {
+      "message": "The summer ventilation settings are not available from the ConnectBox."
+    },
+    "summer_running": {
+      "message": "Stop the summer ventilation interval before changing its settings."
+    },
+    "invalid_level": {
+      "message": "Select a ventilation level between 0 and 4, or Auto when supported."
+    },
+    "level_zero_unsupported": {
+      "message": "This ventilation unit does not support level 0. Use central standby instead."
+    },
+    "sensor_board_unavailable": {
+      "message": "Auto requires a reported sensor board or an existing sensor-controlled room setting."
+    },
+    "situation_not_configured": {
+      "message": "The room does not report a level setting for this situation."
+    },
+    "situation_not_selectable": {
+      "message": "Only the situations At home and Away can be selected."
+    },
+    "device_unavailable": {
+      "message": "The ventilation unit is no longer available. Refresh the integration."
+    },
+    "room_unavailable": {
+      "message": "The room is no longer available. Refresh the integration."
+    },
+    "filter_reset_unsupported": {
+      "message": "Filter reset is not supported for this ventilation unit."
+    },
+    "filter_runtime_unavailable": {
+      "message": "The filter runtime is not available. Wait for a telemetry update before resetting the filter timer."
+    },
+    "command_rejected": {
+      "message": "The ConnectBox rejected the command. Check its operating state and settings in the app."
+    },
+    "command_failed": {
+      "message": "The ConnectBox did not provide a valid confirmation of the change. Check the actual device state before trying again."
+    },
+    "cannot_connect": {
+      "message": "Communication with the ConnectBox failed. Check the connection and the actual device state before trying again."
     }
   }
 }

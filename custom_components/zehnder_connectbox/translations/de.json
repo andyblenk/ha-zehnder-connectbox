@@ -3,13 +3,15 @@
     "abort": {
       "already_configured": "Diese ConnectBox ist bereits konfiguriert.",
       "discovery_failed": "Die ausgewählte ConnectBox ist nicht mehr erreichbar.",
-      "pairing_failed": "Die Kopplung mit der ConnectBox konnte nicht abgeschlossen werden."
+      "pairing_failed": "Die Kopplung mit der ConnectBox konnte nicht abgeschlossen werden.",
+      "wrong_gateway": "Diese ConnectBox gehört nicht zum vorhandenen Integrationseintrag."
     },
     "error": {
       "cannot_connect": "Unter dieser Adresse hat keine ConnectBox geantwortet.",
       "invalid_pairing_name": "Gib einen Namen mit 1 bis 32 UTF-8-Bytes ein.",
       "pairing_failed": "Die Kopplung konnte nicht abgeschlossen werden. Versuche es erneut und drücke kurz die Zugriffstaste der ConnectBox, während die Anzeige blinkt.",
-      "wrong_gateway": "Unter dieser Adresse befindet sich eine andere ConnectBox."
+      "wrong_gateway": "Unter dieser Adresse befindet sich eine andere ConnectBox.",
+      "cannot_verify_gateway": "Die Identität der ConnectBox unter dieser Adresse konnte nicht bestätigt werden."
     },
     "progress": {
       "pairing": "Die Kopplung läuft. Drücke kurz die Zugriffstaste der ConnectBox, während die Anzeige blinkt."
@@ -59,6 +61,14 @@
         },
         "description": "Aktualisiere die lokale Adresse dieser ConnectBox. Ihre Identität und das vertrauenswürdige Zertifikat müssen unverändert bleiben.",
         "title": "ConnectBox neu konfigurieren"
+      },
+      "reauth_confirm": {
+        "title": "ConnectBox erneut koppeln",
+        "description": "Das gespeicherte Zertifikat stimmt nicht mehr mit der ConnectBox überein. Bestätige nur, wenn du diese Änderung erwartest, zum Beispiel nach einem Zurücksetzen des Gateways. Im nächsten Schritt musst du die Kopplung an derselben ConnectBox per Tastendruck bestätigen. Geräte und Entitäten bleiben erhalten.",
+        "data": {
+          "host": "IP-Adresse oder Hostname",
+          "pairing_name": "Name auf der ConnectBox"
+        }
       }
     }
   },
@@ -69,6 +79,9 @@
       }
     },
     "binary_sensor": {
+      "supply_only": {
+        "name": "Zuluftbetrieb"
+      },
       "fault": {
         "name": "Störung"
       },
@@ -129,6 +142,60 @@
           "manual": "Manuell",
           "off": "Aus"
         }
+      },
+      "situation_level_awake": {
+        "name": "Stufe Daheim",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Stufe 1",
+          "level_2": "Stufe 2",
+          "level_3": "Stufe 3",
+          "level_4": "Stufe 4",
+          "auto": "Automatik (Sensor)"
+        }
+      },
+      "situation_level_asleep": {
+        "name": "Stufe Schlafen",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Stufe 1",
+          "level_2": "Stufe 2",
+          "level_3": "Stufe 3",
+          "level_4": "Stufe 4",
+          "auto": "Automatik (Sensor)"
+        }
+      },
+      "situation_level_away": {
+        "name": "Stufe Abwesend",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Stufe 1",
+          "level_2": "Stufe 2",
+          "level_3": "Stufe 3",
+          "level_4": "Stufe 4",
+          "auto": "Automatik (Sensor)"
+        }
+      },
+      "situation_level_antifreeze": {
+        "name": "Stufe Frostschutz",
+        "state": {
+          "standby": "Standby",
+          "level_1": "Stufe 1",
+          "level_2": "Stufe 2",
+          "level_3": "Stufe 3",
+          "level_4": "Stufe 4",
+          "auto": "Automatik (Sensor)"
+        }
+      },
+      "situation": {
+        "name": "Situation",
+        "state": {
+          "awake": "Daheim",
+          "asleep": "Schlafen",
+          "away": "Abwesend",
+          "antifreeze": "Frostschutz",
+          "override": "Vorübergehend geändert"
+        }
       }
     },
     "sensor": {
@@ -161,6 +228,20 @@
       },
       "co2": {
         "name": "CO₂"
+      },
+      "temporary_until": {
+        "name": "Temporäre Änderung bis"
+      },
+      "boost_until": {
+        "name": "Stoßlüftung bis"
+      },
+      "summer_ventilation_role": {
+        "name": "Rolle Sommerlüftung",
+        "state": {
+          "supply_and_exhaust": "Zu- und Abluft",
+          "supply": "Zuluft",
+          "exhaust": "Abluft"
+        }
       }
     },
     "switch": {
@@ -178,6 +259,77 @@
       "summer_ventilation_duration": {
         "name": "Sommerlüftungsdauer"
       }
+    }
+  },
+  "exceptions": {
+    "certificate_changed": {
+      "message": "Das Zertifikat der ConnectBox hat sich geändert. Öffne die Integration und bestätige die erneute Kopplung nur, wenn du die Änderung erwartest."
+    },
+    "summer_not_supported": {
+      "message": "Die angeschlossenen Geräte unterstützen keine Sommerlüftung."
+    },
+    "summer_disabled": {
+      "message": "Aktiviere die Sommerlüftungsfunktion in den Einstellungen oder in der Zehnder-App, bevor du ein Intervall startest."
+    },
+    "summer_duration_unavailable": {
+      "message": "Die ConnectBox meldet keine gültige Sommerlüftungsdauer. Aktualisiere die Integration und prüfe die Einstellungen in der App."
+    },
+    "summer_mode_unavailable": {
+      "message": "Sommerlüftung ist nur im automatischen oder manuellen Betrieb verfügbar."
+    },
+    "situation_unavailable": {
+      "message": "Die aktuelle Situation erlaubt diese Änderung nicht. Wähle zuerst Zu Hause oder Abwesend."
+    },
+    "summer_state_unavailable": {
+      "message": "Der aktuelle Sommerlüftungsstatus ist unbekannt. Aktualisiere die Integration vor einem erneuten Versuch."
+    },
+    "invalid_summer_configuration": {
+      "message": "Gib eine gültige Einstellung für die Sommerlüftungsfunktion oder ihre Dauer an."
+    },
+    "invalid_summer_duration": {
+      "message": "Wähle für die Sommerlüftungsdauer eine ganze Stundenzahl zwischen 1 und 24."
+    },
+    "summer_settings_unavailable": {
+      "message": "Die Sommerlüftungseinstellungen sind von der ConnectBox nicht verfügbar."
+    },
+    "summer_running": {
+      "message": "Beende das Sommerlüftungsintervall, bevor du seine Einstellungen änderst."
+    },
+    "invalid_level": {
+      "message": "Wähle eine Lüfterstufe zwischen 0 und 4 oder Auto, sofern unterstützt."
+    },
+    "level_zero_unsupported": {
+      "message": "Dieses Lüftungsgerät unterstützt keine Stufe 0. Verwende stattdessen den zentralen Standby."
+    },
+    "sensor_board_unavailable": {
+      "message": "Auto erfordert eine gemeldete Sensorplatine oder eine bereits sensorgetriebene Raumeinstellung."
+    },
+    "situation_not_configured": {
+      "message": "Der Raum meldet keine Stufeneinstellung für diese Situation."
+    },
+    "situation_not_selectable": {
+      "message": "Es können nur die Situationen Zu Hause und Abwesend ausgewählt werden."
+    },
+    "device_unavailable": {
+      "message": "Das Lüftungsgerät ist nicht mehr verfügbar. Aktualisiere die Integration."
+    },
+    "room_unavailable": {
+      "message": "Der Raum ist nicht mehr verfügbar. Aktualisiere die Integration."
+    },
+    "filter_reset_unsupported": {
+      "message": "Das Zurücksetzen des Filtertimers wird für dieses Lüftungsgerät nicht unterstützt."
+    },
+    "filter_runtime_unavailable": {
+      "message": "Die Filterlaufzeit ist nicht verfügbar. Warte auf aktualisierte Messwerte, bevor du den Filtertimer zurücksetzt."
+    },
+    "command_rejected": {
+      "message": "Die ConnectBox hat den Befehl abgelehnt. Prüfe den Betriebszustand und die Einstellungen in der App."
+    },
+    "command_failed": {
+      "message": "Die ConnectBox hat die Änderung nicht gültig bestätigt. Prüfe den tatsächlichen Gerätezustand vor einem erneuten Versuch."
+    },
+    "cannot_connect": {
+      "message": "Die Kommunikation mit der ConnectBox ist fehlgeschlagen. Prüfe die Verbindung und den tatsächlichen Gerätezustand vor einem erneuten Versuch."
     }
   }
 }

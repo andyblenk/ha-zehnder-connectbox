@@ -5,98 +5,70 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [0.3.0-beta.2-ca70.1] - 2026-11-17 (CA70 test build)
+### Added
+
+- Expose humidity and CO2/CO2-equivalent readings and the sensor-controlled
+  Auto preset for ComfoAir 70 units with a detected sensor board (#16).
+  A device owner confirmed readings and switching between Auto and manual
+  levels against the official app on a unit with a VOC board. CS50-only
+  sensor-status properties and unrelated capabilities remain unchanged.
+
+## [0.3.0] - 2026-11-17
 
 ### Added
 
-- Provisionally expose humidity and CO2 readings from ComfoAir 70 sensor
-  boards, using the existing room sensor list. A VOC board's CO2 equivalent
-  is shown as CO2 when reported under that sensor type (#16).
-- Offer the Auto fan preset on ComfoAir 70 when humidity/CO2 readings or
-  existing sensor-controlled room settings indicate a sensor board. Reuse
-  the existing sensor-mode command and state refresh (#16).
-
-### Notes
-
-- This test build is based on `0.3.0-beta.2`; later changes on `main` are not
-  included. CA70 readings and physical AUTO behavior still need device-owner
-  validation. Sensor-status property reads remain limited to ComfoSpot 50.
-
-## [0.3.0-beta.2] - 2026-10-01 (pre-release)
-
-### Added
-
-- Control the configured summer ventilation interval from a gateway switch
-  when all attached units have a validated profile and report that capability,
-  with state and end time read back from the ConnectBox.
-- Configure the global summer ventilation function and its 1–24 hour duration
-  from separate gateway controls, with read-back and preservation of the other
-  setting.
-- Show the relative humidity and CO2 concentration measured by the sensor
-  board of ComfoSpot 50 units that report them.
-- Include the current level, the humidity and CO2 readings, and readings of
-  not yet mapped sensor types in the diagnostics.
-
-### Fixed
-
-- Keep an already running summer interval visible and stoppable when its global
-  function setting is disabled in the official app.
+- Start and stop the configured summer ventilation interval, enable or disable
+  the global function, and configure its 1–24 hour duration. Controls require
+  all attached units to have a validated profile and report the capability (#2).
+- Offer sensor-controlled Auto for ComfoSpot 50 units with a detected sensor
+  board, and show humidity and CO2 readings when reported. VOC boards report
+  a CO2 equivalent through the same CO2 entity.
+- Show diagnostic availability indicators for the ComfoSpot 50 temperature,
+  humidity and CO2 sensors.
+- Include current and per-situation levels, sensor-mode availability, sensor
+  readings and readings of unmapped sensor types in the diagnostics.
+- Allow choosing the name shown for this Home Assistant instance during pairing.
+- Configure each room's level for the app's situations (at home, asleep,
+  away, frost protection) from Home Assistant.
+- Show when a temporary change of a room ends, such as a level changed on the
+  unit's control panel.
+- Show the active situation and select the situation at home or away, which
+  switches to the manual mode.
+- Show when a room's running boost ends.
+- Show the role of each ComfoSpot 50 in the summer ventilation (supply,
+  exhaust, or both).
+- Show when a ComfoSpot 50 runs in supply-only operation, switched on at the
+  unit's control panel. The operation can only be read, not switched (#1).
 
 ### Changed
 
-- Create the extract-air temperature entity only after the unit reports a
-  usable value. If an earlier version already created it and it remains
-  unavailable after updating, the stale entity may need to be removed from
-  Home Assistant's entity registry.
-- Show the level a unit currently runs at, so a level changed on the unit's
-  own control panel appears in Home Assistant. After a level is set from Home
-  Assistant, wait briefly until the unit reports it.
-
-## [0.3.0-beta.1] - 2026-10-01 (pre-release)
-
-### Added
-
-- Offer an `auto` ventilation preset that selects sensor-controlled operation
-  for ComfoSpot 50 units with a sensor board. It is offered only when the unit
-  reports an available humidity or CO2 sensor, or when its room already uses
-  sensor-controlled operation in one of its situations.
-- Show sensor-controlled operation as the `auto` preset instead of an unknown
-  fan state.
-- Include the per-situation ventilation values and sensor-mode availability in
-  the diagnostics.
-
-## [0.2.1-beta.2] - 2026-10-01 (pre-release)
-
-### Changed
-
-- Refresh fan speeds, temperatures, and fault values every minute while
-  refreshing filter counters every 15 minutes.
-- Use the next scheduled refresh for missing read-only device values instead
-  of repeatedly reading rooms for up to five seconds. Filter resets still
-  require a confirmed read-back.
-- Read all properties when a ventilation unit is newly discovered or returns
-  after an absence, so its filter values appear without a 15-minute delay.
-
-### Added
-
-- Show diagnostic availability indicators for the ComfoSpot 50 extract-air,
-  incoming-air, humidity, and CO2 sensors.
-- Group fan speeds, filter runtime, and remaining filter runtime with the
-  primary device sensors.
+- Refresh temperatures, fan speeds and fault values every minute, and filter
+  counters every 15 minutes. Newly discovered or returning units get a full
+  property refresh.
+- Reflect the current ventilation level reported by the unit, including
+  changes made on its control panel, and sensor-controlled operation as Auto.
+- Group fan speeds and filter runtime sensors with the primary device sensors.
+- Use scheduled refreshes for missing read-only values instead of repeatedly
+  polling for them; filter resets still require confirmed read-back.
+- Create the extract-air temperature entity only after a usable value is
+  reported. An unavailable entity left from an earlier version may need to be
+  removed from Home Assistant's entity registry.
 
 ### Fixed
 
-- Keep the last valid device-property value when a refresh temporarily reports
-  an empty value, preventing brief unavailable states for telemetry sensors.
-- Do not present an extract-air or incoming-air temperature as a valid reading
-  when its sensor reports that it is unavailable.
-
-## [0.2.1-beta.1] - 2026-09-30 (pre-release)
-
-### Added
-
-- Allow a custom ConnectBox pairing name during setup, while keeping
-  "Home Assistant" as the default.
+- Start a Home Assistant reauthentication flow when the ConnectBox certificate
+  changes, with deliberate physical pairing to the same gateway. Update the
+  existing entry without losing its device/entity customizations. Verify a
+  known gateway address over TLS when UDP discovery is blocked (#15).
+- Show translated validation messages for expected command refusals, including
+  summer ventilation, missing sensor boards, filter reset and situation
+  selection. Distinguish communication failures and unconfirmed changes (#15).
+- Keep a running summer interval visible and stoppable when its global
+  function is disabled in the official app.
+- Retain valid telemetry across empty property refreshes and preserve core
+  telemetry when an optional property request is rejected.
+- Do not display temperature readings as valid when their sensors report
+  that they are unavailable.
 
 ## [0.2.0] - 2026-09-15
 
@@ -131,9 +103,6 @@ project follows [Semantic Versioning](https://semver.org/).
 - ComfoSpot 50 filter-timer reset button with gateway acknowledgements, state
   readback, and documented dashboard confirmation.
 
-[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.3.0-beta.2...HEAD
-[0.3.0-beta.2]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.3.0-beta.2
-[0.3.0-beta.1]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.3.0-beta.1
-[0.2.1-beta.2]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.1-beta.2
-[0.2.1-beta.1]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.1-beta.1
+[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.0

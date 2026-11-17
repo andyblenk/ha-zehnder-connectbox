@@ -36,6 +36,15 @@ MAX_FRAME_PAYLOAD = 8191
 MAX_OPERATION_SIZE = 1023
 FRAME_HEADER_SIZE = 34
 
+# Room fields observed while the official app started and stopped a boost and
+# after a level was changed on a unit's control panel.
+ROOM_BOOST_UNTIL = 18
+"""Unix time at which an active boost ends; absent without a boost."""
+ROOM_BOOST_DURATION = 22
+"""Configured boost duration in minutes (the app offers 15 to 120)."""
+ROOM_TEMPORARY_UNTIL = 61
+"""Unix time of the next schedule change that ends a temporary change."""
+
 
 class ProtocolError(ConnectionError):
     """Raised for invalid or unexpected gateway data."""
@@ -275,6 +284,10 @@ def _decode_room(message: bytes) -> Room:
         ),
         devices=tuple(_decode_device(value) for value in bytes_values(fields, 8)),
         raw=message,
+        # The gateway may encode zero when no temporary change is active.
+        temporary_until=uint_value(fields, ROOM_TEMPORARY_UNTIL) or None,
+        boost_until=uint_value(fields, ROOM_BOOST_UNTIL) or None,
+        boost_duration=uint_value(fields, ROOM_BOOST_DURATION),
     )
 
 

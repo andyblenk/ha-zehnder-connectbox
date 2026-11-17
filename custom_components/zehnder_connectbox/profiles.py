@@ -72,6 +72,25 @@ SENSOR_STATUS_SPECS = (
     CO2_SENSOR_STATUS,
 )
 
+# Role of a unit in the app's summer ventilation, which ventilates with
+# outdoor air without heat recovery. Matched against the room settings in the
+# official app for five ComfoSpot 50 units.
+SUMMER_VENTILATION_ROLE = PropertySpec((38, 0, 11), 1)
+SUMMER_VENTILATION_ROLES = {
+    0: "supply_and_exhaust",
+    1: "supply",
+    2: "exhaust",
+}
+# Read in their own sequence, so a unit that rejects them keeps its telemetry.
+# This three-item sequence was read successfully from five ComfoSpot 50 units;
+# a single-item read sequence has not been verified. The two neighbouring
+# settings are requested only to keep that verified sequence.
+OPTIONAL_PROPERTY_SPECS = (
+    PropertySpec((38, 0, 9), 1),
+    PropertySpec((38, 0, 10), 1),
+    SUMMER_VENTILATION_ROLE,
+)
+
 # Sensor types in a unit's sensor list (device field 8 of the room model).
 SENSOR_TYPE_TEMPERATURE = 1
 SENSOR_TYPE_HUMIDITY = 2
@@ -114,6 +133,58 @@ def property_specs_for_device(
     if include_filter_properties:
         return specs
     return tuple(spec for spec in specs if spec not in FILTER_PROPERTY_SPECS)
+
+
+def optional_property_specs_for_device(
+    device: AttachedDevice,
+) -> tuple[PropertySpec, ...]:
+    """Return slowly changing settings read for the checked profile only."""
+    return OPTIONAL_PROPERTY_SPECS if supports_sensor_status(device) else ()
+
+
+# Whether the exhaust fan is enabled (1) or switched off (0). On a ComfoSpot 50,
+# supply-only operation switched on at the unit's control panel set it to 0,
+# and switching the operation off set it back to 1; the exhaust fan stood still
+# in between. The ConnectBox confirms a write of this value, but the unit does
+# not change, so it is only read.
+EXHAUST_FAN_ENABLED = PropertySpec((38, 0, 5), 1)
+# Read with every property refresh in its own sequence after the core
+# telemetry, like the optional settings. A unit that rejects it keeps its
+# telemetry and is not asked again until the integration is reloaded. This
+# three-item sequence was read successfully from five ComfoSpot 50 units; the
+# two neighbouring values are requested only to keep that verified sequence.
+FAN_STATE_PROPERTY_SPECS = (
+    EXHAUST_FAN_ENABLED,
+    PropertySpec((38, 0, 6), 1),
+    PropertySpec((38, 0, 8), 1),
+)
+
+
+def fan_state_property_specs_for_device(
+    device: AttachedDevice,
+) -> tuple[PropertySpec, ...]:
+    """Return the fan-state sequence for the checked profile only."""
+    return FAN_STATE_PROPERTY_SPECS if supports_sensor_status(device) else ()
+
+
+def supply_only_operation(device: AttachedDevice) -> bool | None:
+    """Interpret the exhaust fan's enable flag; leave other values unknown."""
+    if not supports_sensor_status(device):
+        return None
+    value = EXHAUST_FAN_ENABLED.value(device)
+    if value == 0:
+        return True
+    if value == 1:
+        return False
+    return None
+
+
+def summer_ventilation_role(device: AttachedDevice) -> str | None:
+    """Return the unit's role in the summer ventilation, if reported."""
+    if not supports_sensor_status(device):
+        return None
+    value = SUMMER_VENTILATION_ROLE.value(device)
+    return SUMMER_VENTILATION_ROLES.get(value) if value is not None else None
 
 
 def sensor_available(device: AttachedDevice, status_spec: PropertySpec) -> bool | None:
@@ -165,9 +236,11 @@ def board_reading(device: AttachedDevice, sensor_type: int) -> int | None:
 
     Each unit reports a list of (sensor type, value) pairs in the room model:
     temperature in 0.1 °C, relative humidity in %, and CO2 in ppm. The types
-    were matched against six ComfoSpot 50 units with sensor boards. A VOC
-    board reports its CO2 equivalent under the CO2 type. The same reading
-    format is provisionally used for ComfoAir 70, pending hardware feedback.
+    were matched against six ComfoSpot 50 units with sensor boards, one of
+    them a VOC board. The VOC board reports its CO2 equivalent under the CO2
+    type and an available CO2 sensor as well, so a CO2 and a VOC board cannot
+    be told apart. A device owner confirmed the same reading format on a
+    ComfoAir 70 with a VOC board against the official app.
     """
     if not is_supported(device):
         return None
@@ -179,7 +252,7 @@ def supports_sensor_mode(room: Room, device: AttachedDevice) -> bool:
 
     A room that already uses sensor operation proves the board even before the
     periodically refreshed sensor-status properties have been read.
-    ComfoAir 70 provisionally shares the same sensor-mode level, but its
+    ComfoAir 70 shares the same sensor-mode level, but its
     board detection uses reported readings or existing room sensor mode only;
     sensor-status property reads remain restricted to ComfoSpot 50.
     """
