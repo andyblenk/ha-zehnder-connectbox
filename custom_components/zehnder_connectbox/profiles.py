@@ -239,9 +239,10 @@ def board_reading(device: AttachedDevice, sensor_type: int) -> int | None:
     were matched against six ComfoSpot 50 units with sensor boards, one of
     them a VOC board. The VOC board reports its CO2 equivalent under the CO2
     type and an available CO2 sensor as well, so a CO2 and a VOC board cannot
-    be told apart.
+    be told apart. A device owner confirmed the same reading format on a
+    ComfoAir 70 with a VOC board against the official app.
     """
-    if not supports_sensor_status(device):
+    if not is_supported(device):
         return None
     return device.reading(sensor_type)
 
@@ -251,8 +252,11 @@ def supports_sensor_mode(room: Room, device: AttachedDevice) -> bool:
 
     A room that already uses sensor operation proves the board even before the
     periodically refreshed sensor-status properties have been read.
+    ComfoAir 70 shares the same sensor-mode level, but its
+    board detection uses reported readings or existing room sensor mode only;
+    sensor-status property reads remain restricted to ComfoSpot 50.
     """
-    return supports_sensor_status(device) and (
+    return is_supported(device) and (
         has_sensor_board(device) or room_uses_sensor_mode(room)
     )
 

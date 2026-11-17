@@ -5,6 +5,14 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Expose humidity and CO2/CO2-equivalent readings and the sensor-controlled
+  Auto preset for ComfoAir 70 units with a detected sensor board (#16).
+  A device owner confirmed readings and switching between Auto and manual
+  levels against the official app on a unit with a VOC board. CS50-only
+  sensor-status properties and unrelated capabilities remain unchanged.
+
 ## [0.3.0] - 2026-11-17
 
 ### Added
