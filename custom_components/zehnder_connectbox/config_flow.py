@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 from functools import partial
+from typing import Any
+from uuid import UUID
 
 import voluptuous as vol
 from homeassistant.components import network
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import SOURCE_REAUTH, ConfigFlow, ConfigFlowResult
 from homeassistant.const import CONF_HOST
 
 from .client import PAIRING_NICKNAME, ConnectBoxClient, PairingError
@@ -23,6 +26,8 @@ from .const import (
 )
 from .discovery import discover_gateways
 from .models import DiscoveredGateway, PairingData
+from .protocol import ProtocolError
+from .transport import TransportError
 
 CONF_DISCOVERED_GATEWAY = "discovered_gateway"
 CONF_PAIRING_NAME = "pairing_name"
@@ -176,15 +181,23 @@ class ZehnderConnectBoxConfigFlow(ConfigFlow, domain=DOMAIN):
                 data_schema=vol.Schema({}),
                 errors={"base": "pairing_failed"},
             )
+        pairing_data = {
+            CONF_HOST: self._selected.host,
+            CONF_APP_UUID: str(pairing.app_uuid),
+            CONF_REMOTE_UUID: str(pairing.remote_uuid),
+            CONF_APP_ID: pairing.app_id,
+            CONF_CERTIFICATE_SHA256: pairing.certificate_sha256,
+        }
+        if self.source == SOURCE_REAUTH:
+            entry = self._get_reauth_entry()
+            if str(self._selected.gateway_uuid) != entry.data[CONF_GATEWAY_UUID]:
+                return self.async_abort(reason="wrong_gateway")
+            return self.async_update_reload_and_abort(entry, data_updates=pairing_data)
         return self.async_create_entry(
             title=self._selected.name or DEFAULT_NAME,
             data={
-                CONF_HOST: self._selected.host,
+                **pairing_data,
                 CONF_GATEWAY_UUID: str(self._selected.gateway_uuid),
-                CONF_APP_UUID: str(pairing.app_uuid),
-                CONF_REMOTE_UUID: str(pairing.remote_uuid),
-                CONF_APP_ID: pairing.app_id,
-                CONF_CERTIFICATE_SHA256: pairing.certificate_sha256,
             },
         )
 
@@ -221,6 +234,72 @@ class ZehnderConnectBoxConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reconfigure",
             data_schema=vol.Schema(
                 {vol.Required(CONF_HOST, default=entry.data[CONF_HOST]): str}
+            ),
+            errors=errors,
+        )
+
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> ConfigFlowResult:
+        """Require deliberate confirmation before replacing the trusted identity."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict | None = None
+    ) -> ConfigFlowResult:
+        """Discover the same gateway, then reuse physical pairing."""
+        entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
+        host = entry.data[CONF_HOST]
+        if user_input is not None:
+            host = user_input[CONF_HOST].strip()
+            try:
+                self._pairing_name = _validate_pairing_name(
+                    user_input.get(CONF_PAIRING_NAME, PAIRING_NICKNAME)
+                )
+            except ValueError:
+                errors[CONF_PAIRING_NAME] = "invalid_pairing_name"
+            else:
+                discovered = await self.hass.async_add_executor_job(
+                    discover_gateways, [host]
+                )
+                expected_uuid = entry.data[CONF_GATEWAY_UUID]
+                selected = next(
+                    (
+                        item
+                        for uuid, item in discovered.items()
+                        if str(uuid) == expected_uuid
+                        and str(item.gateway_uuid) == expected_uuid
+                    ),
+                    None,
+                )
+                if not discovered:
+                    try:
+                        await self.hass.async_add_executor_job(
+                            ConnectBoxClient.check_gateway_identity,
+                            host,
+                            UUID(expected_uuid),
+                        )
+                    except TransportError:
+                        errors["base"] = "cannot_connect"
+                    except ProtocolError:
+                        errors["base"] = "cannot_verify_gateway"
+                    else:
+                        selected = DiscoveredGateway(host, UUID(expected_uuid))
+                elif selected is None:
+                    errors["base"] = "wrong_gateway"
+                if selected is not None:
+                    self._selected = selected
+                    await self.async_set_unique_id(expected_uuid)
+                    self._abort_if_unique_id_mismatch(reason="wrong_gateway")
+                    return await self.async_step_pair()
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_HOST, default=host): str,
+                    vol.Required(CONF_PAIRING_NAME, default=self._pairing_name): str,
+                }
             ),
             errors=errors,
         )

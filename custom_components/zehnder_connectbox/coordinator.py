@@ -6,11 +6,17 @@ import asyncio
 import logging
 import random
 import time
+from collections.abc import Callable
 from datetime import timedelta
 from functools import partial
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    HomeAssistantError,
+    ServiceValidationError,
+)
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -23,9 +29,11 @@ from .const import (
     POLL_INTERVAL,
     PROPERTY_REFRESH_INTERVAL,
 )
+from .errors import CommandValidationError
 from .models import GatewaySnapshot, RunMode
 from .profiles import FILTER_RUNTIME, format_version, product_name
 from .protocol import ProtocolError
+from .session import GatewayResponseError
 from .transport import CertificateMismatchError, TransportError
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,9 +88,9 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
                     )
                 )
         except CertificateMismatchError as err:
-            self._set_failure_interval()
-            raise UpdateFailed(
-                "The ConnectBox certificate no longer matches the paired gateway"
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN,
+                translation_key="certificate_changed",
             ) from err
         except (ProtocolError, TransportError, OSError) as err:
             self._set_failure_interval()
@@ -102,48 +110,43 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         self, room_id: int, level: int, temperature_mode: int | None = None
     ) -> None:
         """Set and confirm a room level for the active or a given situation."""
-        async with self._io_lock:
-            snapshot = await self.hass.async_add_executor_job(
-                self.client.set_level, room_id, level, temperature_mode
-            )
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_level, room_id, level, temperature_mode)
+        )
         self._accept_command_snapshot(snapshot)
 
     async def async_set_situation(self, temperature_mode: int) -> None:
         """Select a situation of the manual mode and confirm it."""
-        async with self._io_lock:
-            snapshot = await self.hass.async_add_executor_job(
-                self.client.set_situation, temperature_mode
-            )
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_situation, temperature_mode)
+        )
         self._accept_command_snapshot(snapshot)
 
     async def async_set_mode(self, mode: RunMode) -> None:
         """Set and confirm the system run mode."""
-        async with self._io_lock:
-            snapshot = await self.hass.async_add_executor_job(
-                self.client.set_run_mode, mode
-            )
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_run_mode, mode)
+        )
         self._accept_command_snapshot(snapshot)
 
     async def async_set_summer_ventilation(self, enabled: bool) -> None:
         """Set and confirm the gateway-wide summer ventilation interval."""
-        async with self._io_lock:
-            snapshot = await self.hass.async_add_executor_job(
-                self.client.set_summer_ventilation, enabled
-            )
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_summer_ventilation, enabled)
+        )
         self._accept_command_snapshot(snapshot)
 
     async def async_set_summer_configuration(
         self, *, enabled: bool | None = None, duration_hours: int | None = None
     ) -> None:
         """Set and confirm the gateway-wide summer function configuration."""
-        async with self._io_lock:
-            snapshot = await self.hass.async_add_executor_job(
-                partial(
-                    self.client.set_summer_configuration,
-                    enabled=enabled,
-                    duration_hours=duration_hours,
-                )
+        snapshot = await self._async_execute_command(
+            partial(
+                self.client.set_summer_configuration,
+                enabled=enabled,
+                duration_hours=duration_hours,
             )
+        )
         self._accept_command_snapshot(snapshot)
 
     async def async_set_power(self, enabled: bool) -> None:
@@ -155,7 +158,9 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         """Reset a supported unit's filter timer and refresh its telemetry."""
         data = self.data.find_device(device_id) if self.data is not None else None
         if data is None:
-            raise ProtocolError("device is no longer available")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="device_unavailable"
+            )
         device = data[1]
         property_value = next(
             (
@@ -168,12 +173,13 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
             None,
         )
         if property_value is None:
-            raise ProtocolError("filter runtime is not available for this device")
-
-        async with self._io_lock:
-            snapshot = await self.hass.async_add_executor_job(
-                self.client.reset_filter_timer, device_id, property_value.key
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="filter_runtime_unavailable"
             )
+
+        snapshot = await self._async_execute_command(
+            partial(self.client.reset_filter_timer, device_id, property_value.key)
+        )
         self._last_property_refresh = time.monotonic()
         self._last_filter_property_refresh = self._last_property_refresh
         self._accept_command_snapshot(snapshot)
@@ -182,6 +188,35 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         """Close the client outside Home Assistant's event loop."""
         async with self._io_lock:
             await self.hass.async_add_executor_job(self.client.close)
+
+    async def _async_execute_command(
+        self, command: Callable[[], GatewaySnapshot]
+    ) -> GatewaySnapshot:
+        """Serialize commands and translate expected failures at the HA boundary."""
+        try:
+            async with self._io_lock:
+                return await self.hass.async_add_executor_job(command)
+        except CommandValidationError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key=err.translation_key
+            ) from err
+        except CertificateMismatchError as err:
+            self.entry.async_start_reauth(self.hass)
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="certificate_changed"
+            ) from err
+        except GatewayResponseError as err:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="command_rejected"
+            ) from err
+        except ProtocolError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="command_failed"
+            ) from err
+        except (TransportError, OSError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="cannot_connect"
+            ) from err
 
     def _accept_command_snapshot(self, snapshot: GatewaySnapshot) -> None:
         self._remember_mode(snapshot)

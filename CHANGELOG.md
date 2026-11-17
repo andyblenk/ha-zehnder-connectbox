@@ -5,6 +5,16 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Start a Home Assistant reauthentication flow when the ConnectBox certificate
+  changes, with deliberate physical pairing to the same gateway. Update the
+  existing entry without losing its device/entity customizations. Verify a
+  known gateway address over TLS when UDP discovery is blocked (#15).
+- Show translated validation messages for expected command refusals, including
+  summer ventilation, missing sensor boards, filter reset and situation
+  selection. Distinguish communication failures and unconfirmed changes (#15).
+
 ### Added
 
 - Configure each room's level for the app's situations (at home, asleep,

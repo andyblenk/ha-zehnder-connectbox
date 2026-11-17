@@ -11,7 +11,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import ZehnderConnectBoxConfigEntry
-from .const import CONF_GATEWAY_UUID, SENSOR_MODE_LEVEL
+from .const import CONF_GATEWAY_UUID, DOMAIN, SENSOR_MODE_LEVEL
 from .entity import ConnectBoxDeviceEntity, ConnectBoxGatewayEntity
 from .models import RunMode, TemperatureMode
 from .profiles import is_supported, supports_sensor_mode
@@ -157,7 +157,7 @@ class ConnectBoxSituation(ConnectBoxGatewayEntity, SelectEntity):
             return
         if option not in SELECTABLE_SITUATIONS:
             raise ServiceValidationError(
-                "Only the situations at home and away can be selected"
+                translation_domain=DOMAIN, translation_key="situation_not_selectable"
             )
         await self.coordinator.async_set_situation(OPTION_TO_SITUATION[option])
 
