@@ -344,6 +344,12 @@ Releases follow [Semantic Versioning](https://semver.org/). HACS installs the
 version published in a GitHub release. Pre-1.0 releases may still change as
 additional hardware feedback is incorporated.
 
+See the [changelog](CHANGELOG.md) for release details and upgrade notes.
+Version 0.3.0 includes ComfoSpot 50 sensor-controlled Auto, sensor readings,
+summer ventilation, situation controls and certificate-change recovery.
+ComfoAir 70 sensor/Auto support remains in a separate test build; supply-only
+control and starting or stopping a boost are not included in this release.
+
 ## License and acknowledgements
 
 Copyright 2026 Andreas Blenk and contributors. Licensed under the
