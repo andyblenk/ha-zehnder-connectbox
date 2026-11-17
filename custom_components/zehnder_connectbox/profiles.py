@@ -165,9 +165,11 @@ def board_reading(device: AttachedDevice, sensor_type: int) -> int | None:
 
     Each unit reports a list of (sensor type, value) pairs in the room model:
     temperature in 0.1 °C, relative humidity in %, and CO2 in ppm. The types
-    were matched against six ComfoSpot 50 units with CO2 sensor boards.
+    were matched against six ComfoSpot 50 units with sensor boards. A VOC
+    board reports its CO2 equivalent under the CO2 type. The same reading
+    format is provisionally used for ComfoAir 70, pending hardware feedback.
     """
-    if not supports_sensor_status(device):
+    if not is_supported(device):
         return None
     return device.reading(sensor_type)
 
@@ -177,8 +179,11 @@ def supports_sensor_mode(room: Room, device: AttachedDevice) -> bool:
 
     A room that already uses sensor operation proves the board even before the
     periodically refreshed sensor-status properties have been read.
+    ComfoAir 70 provisionally shares the same sensor-mode level, but its
+    board detection uses reported readings or existing room sensor mode only;
+    sensor-status property reads remain restricted to ComfoSpot 50.
     """
-    return supports_sensor_status(device) and (
+    return is_supported(device) and (
         has_sensor_board(device) or room_uses_sensor_mode(room)
     )
 

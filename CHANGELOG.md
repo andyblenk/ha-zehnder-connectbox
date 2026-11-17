@@ -5,6 +5,23 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0-beta.2-ca70.1] - 2026-11-17 (CA70 test build)
+
+### Added
+
+- Provisionally expose humidity and CO2 readings from ComfoAir 70 sensor
+  boards, using the existing room sensor list. A VOC board's CO2 equivalent
+  is shown as CO2 when reported under that sensor type (#16).
+- Offer the Auto fan preset on ComfoAir 70 when humidity/CO2 readings or
+  existing sensor-controlled room settings indicate a sensor board. Reuse
+  the existing sensor-mode command and state refresh (#16).
+
+### Notes
+
+- This test build is based on `0.3.0-beta.2`; later changes on `main` are not
+  included. CA70 readings and physical AUTO behavior still need device-owner
+  validation. Sensor-status property reads remain limited to ComfoSpot 50.
+
 ## [0.3.0-beta.2] - 2026-10-01 (pre-release)
 
 ### Added

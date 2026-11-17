@@ -108,8 +108,8 @@ information when reported by the gateway.
 | Ventilation | Fan | Levels 1–4 as 25–100%, named level presets, sensor-controlled Auto where a sensor board is detected, and off where supported |
 | Extract air temperature | Sensor | Temperature of air extracted from the room; created when a usable value is reported |
 | Incoming air temperature | Sensor | Temperature of incoming outdoor air |
-| Humidity | Sensor | Relative humidity measured by the sensor board; only on ComfoSpot 50 units that report it |
-| CO2 | Sensor | CO2 concentration measured by the sensor board; only on ComfoSpot 50 units that report it |
+| Humidity | Sensor | Relative humidity reported by the sensor board; ComfoSpot 50 and provisionally ComfoAir 70 |
+| CO2 | Sensor | CO2 concentration or a VOC board's CO2 equivalent in ppm; ComfoSpot 50 and provisionally ComfoAir 70, when reported |
 | Extract air temperature sensor | Diagnostic binary sensor | Whether the extract-air temperature sensor is available |
 | Incoming air temperature sensor | Diagnostic binary sensor | Whether the incoming-air temperature sensor is available |
 | Humidity sensor | Diagnostic binary sensor | Whether the humidity sensor is available |
@@ -134,7 +134,8 @@ Level 4:
 
 <img src="docs/images/ventilation-dialog.png" alt="Ventilation level control with presets in Home Assistant" width="430">
 
-When the unit reports an available humidity or CO2 sensor, the additional
+When the unit reports humidity or CO2 readings, or a ComfoSpot 50 reports
+an available humidity or CO2 sensor, the additional
 **Auto (sensor)** preset is shown:
 
 <img src="docs/images/ventilation-dialog-with-sensor.png" alt="Ventilation control with the Auto sensor preset in Home Assistant" width="430">
@@ -162,17 +163,24 @@ See the [screenshot gallery](docs/screenshots.md) for pairing and device views.
 
 ### Sensor-controlled operation (Auto)
 
-ComfoSpot 50 units with the optional sensor board (humidity, CO2, or VOC) can
+ComfoSpot 50 units and provisionally ComfoAir 70 units with a sensor board can
 let the unit choose its fan level from its sensors. The ventilation entity
 offers this as the `auto` preset only when a sensor board is detected:
 
-- the unit reports an available humidity or CO2 sensor, which only the sensor
-  boards provide, or
+- the unit reports a humidity or CO2 reading, including a VOC board's CO2
+  equivalent, or
+- a ComfoSpot 50 reports an available humidity or CO2 sensor, or
 - the room already uses sensor-controlled operation in one of its situations,
-  for example because it was selected in the official app.
+  or as its current level, for example because it was selected in the app.
 
-Units without a sensor board, units whose sensor status is not yet known, and
-the provisional ComfoAir 70 profile do not offer the preset.
+Units without any of these indications do not offer the preset. ComfoAir 70
+sensor-status properties are not requested or interpreted in this test build.
+
+CO2 and VOC boards cannot be distinguished from the reported CO2 sensor type.
+On a VOC board, the reading is a CO2 equivalent rather than a measured CO2
+concentration; both are displayed as **CO2**. The same interpretation is used
+provisionally for ComfoAir 70 and should be checked against the installed board
+and the official app.
 
 The preset selects sensor-controlled operation for the room's currently active
 situation, the same choice the official app offers instead of a fixed fan
@@ -191,6 +199,21 @@ target:
 data:
   preset_mode: auto
 ```
+
+### ComfoAir 70 test build
+
+Version `0.3.0-beta.2-ca70.1` is a dedicated test build based on
+`0.3.0-beta.2` for [issue #16](https://github.com/andyblenk/ha-zehnder-connectbox/issues/16).
+CA70 support remains provisional until readings and physical operation have
+been checked on a real installation. No additional CA70 property reads or
+summer-ventilation controls are enabled by this change.
+
+When testing, compare humidity and air-quality values with the official app.
+Record the initial fan setting, select **Auto (sensor)**, check the mode in
+the app and at the unit, then select a manual level and restore the initial
+setting. Report the sensor-board type, which readings and presets appear, and
+whether both transitions work. If readings or Auto are missing, a downloaded
+integration diagnostics file can help identify what the gateway reports.
 
 ## Requirements
 
