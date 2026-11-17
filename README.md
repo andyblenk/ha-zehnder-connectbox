@@ -266,8 +266,8 @@ custom repository:
 6. Briefly press the access-key button on the ConnectBox while its indicator
    is blinking.
 
-The pairing name is sent only when the integration is first paired. Changing
-it for an existing entry requires pairing that instance again.
+The pairing name is sent during physical pairing, including reauthentication.
+Changing it for an existing entry requires pairing that instance again.
 
 Home Assistant creates the gateway device and each recognized ventilation
 unit behind it. If another supported unit is linked later in the Zehnder app,
@@ -314,7 +314,15 @@ execute the reset without that dashboard confirmation.
   ConnectBox IP address.
 - The gateway certificate is trusted during deliberate physical pairing and
   pinned for later connections. A certificate change is treated as a security
-  error rather than being accepted silently.
+  error rather than being accepted silently. Home Assistant asks you to pair
+  again. Continue only if you expect the change; confirm using the access-key
+  button on the same ConnectBox. The existing entry, device and entity IDs,
+  names, areas and disabled-entity settings are kept. The confirmation form
+  also allows correcting the address. Only the same ConnectBox is accepted,
+  including when UDP discovery is unavailable.
+- Expected command refusals show a translated explanation in the interface
+  and automation traces. Connection failures and changes not confirmed by the
+  gateway have separate messages; check the actual device state before retrying.
 - Download diagnostics from the integration entry before opening an issue.
   Diagnostics omit host addresses, names, serial numbers, UUIDs, certificate
   fingerprints, pairing material, and raw protocol frames.

@@ -5,10 +5,11 @@ from __future__ import annotations
 from homeassistant.components.number import NumberDeviceClass, NumberEntity
 from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import ZehnderConnectBoxConfigEntry
-from .const import CONF_GATEWAY_UUID
+from .const import CONF_GATEWAY_UUID, DOMAIN
 from .entity import ConnectBoxGatewayEntity
 from .profiles import supports_summer_ventilation
 
@@ -81,5 +82,7 @@ class ConnectBoxSummerVentilationDuration(ConnectBoxGatewayEntity, NumberEntity)
     async def async_set_native_value(self, value: float) -> None:
         """Set whole hours while retaining the current function setting."""
         if not 1 <= value <= 24 or not float(value).is_integer():
-            raise ValueError("summer ventilation duration must be 1 to 24 whole hours")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="invalid_summer_duration"
+            )
         await self.coordinator.async_set_summer_configuration(duration_hours=int(value))
