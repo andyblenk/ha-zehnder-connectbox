@@ -5,6 +5,34 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Add a fan status sensor per unit that shows what the unit is doing right
+  now (central off, standby, level 1–4, sensor mode, boost, summer
+  ventilation) with a matching icon, and carries the level, situation, fan
+  speeds, supply-only operation, end times and active fault codes as
+  attributes for dashboards.
+- List the active fault codes on the fault sensor.
+- Add icons for the ventilation levels, fan speeds, filter values and end
+  times.
+
+### Changed
+
+- Show the ventilation levels with numbered icons (1–4), clearly apart from
+  the sensor-controlled `auto` preset.
+- **Breaking:** the ventilation presets are now `level_1` to `level_4` and
+  `auto`, so the frontend shows them translated ("Stufe 1" …). Automations
+  that call `fan.set_preset_mode` with `Level 1` to `Level 4` must be updated.
+
+### Fixed
+
+- Stop passing the deprecated `via_device` device information and use
+  `UnitOfRatio.PARTS_PER_MILLION` for CO2, both removed in Home Assistant
+  2027.8. The link to the ConnectBox is still set when devices are registered.
+- Report the filter runtime, remaining runtime and maintenance interval in
+  days instead of hours; the unit counts days (for example a 90-day
+  interval).
+
 ## [0.3.1] - 2026-11-17
 
 ### Added
@@ -41,34 +69,6 @@ project follows [Semantic Versioning](https://semver.org/).
   exhaust, or both).
 - Show when a ComfoSpot 50 runs in supply-only operation, switched on at the
   unit's control panel. The operation can only be read, not switched (#1).
-- Add a fan status sensor per unit that shows what the unit is doing right
-  now (central off, standby, level 1–4, sensor mode, boost, summer
-  ventilation) with a matching icon, and carries the level, situation, fan
-  speeds, supply-only operation, end times and active fault codes as
-  attributes for dashboards.
-- List the active fault codes on the fault sensor.
-- Add icons for the ventilation levels, fan speeds, filter values and end
-  times.
-
-### Fixed
-
-- Stop passing the deprecated `via_device` device information and use
-  `UnitOfRatio.PARTS_PER_MILLION` for CO2, both removed in Home Assistant
-  2027.8. The link to the ConnectBox is still set when devices are registered.
-- Report the filter runtime, remaining runtime and maintenance interval in
-  days instead of hours; the unit counts days (for example a 90-day
-  interval).
-
-### Changed
-
-- Remove the temporary capture build from diagnostics (raw run state, room
-  fields and the app's property scan); diagnostics are back to the decoded
-  values.
-- Show the ventilation levels with numbered icons (1–4), clearly apart from
-  the sensor-controlled `auto` preset.
-- **Breaking:** the ventilation presets are now `level_1` to `level_4` and
-  `auto`, so the frontend shows them translated ("Stufe 1" …). Automations
-  that call `fan.set_preset_mode` with `Level 1` to `Level 4` must be updated.
 
 ### Changed
 
