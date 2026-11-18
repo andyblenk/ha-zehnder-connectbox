@@ -14,7 +14,6 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
-    CONCENTRATION_PARTS_PER_MILLION,
     PERCENTAGE,
     EntityCategory,
     UnitOfTemperature,
@@ -42,8 +41,19 @@ from .profiles import (
     SUPPLY_FAN_SPEED,
     board_reading,
     summer_ventilation_role,
+    supply_only_operation,
     temperature_value,
 )
+from .status import FAN_STATUS_OPTIONS, error_codes, fan_status, situation
+
+try:
+    from homeassistant.const import UnitOfRatio
+
+    PARTS_PER_MILLION = UnitOfRatio.PARTS_PER_MILLION
+except ImportError:  # older Home Assistant without UnitOfRatio
+    from homeassistant.const import (
+        CONCENTRATION_PARTS_PER_MILLION as PARTS_PER_MILLION,
+    )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -115,7 +125,7 @@ SENSORS = (
         key="co2",
         translation_key="co2",
         device_class=SensorDeviceClass.CO2,
-        native_unit_of_measurement=CONCENTRATION_PARTS_PER_MILLION,
+        native_unit_of_measurement=PARTS_PER_MILLION,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda device: board_reading(device, SENSOR_TYPE_CO2),
         exists_fn=lambda device: board_reading(device, SENSOR_TYPE_CO2) is not None,
@@ -163,7 +173,7 @@ SENSORS = (
         key="filter_runtime",
         translation_key="filter_runtime",
         device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.HOURS,
+        native_unit_of_measurement=UnitOfTime.DAYS,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=lambda device: (
             FILTER_RUNTIME.value(device)
@@ -175,7 +185,7 @@ SENSORS = (
         key="filter_remaining",
         translation_key="filter_remaining",
         device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.HOURS,
+        native_unit_of_measurement=UnitOfTime.DAYS,
         state_class=SensorStateClass.MEASUREMENT,
         value_fn=FILTER_REMAINING.value,
     ),
@@ -183,7 +193,7 @@ SENSORS = (
         key="filter_maximum",
         translation_key="filter_maximum",
         device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.HOURS,
+        native_unit_of_measurement=UnitOfTime.DAYS,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda device: (
@@ -217,11 +227,16 @@ async def async_setup_entry(
         if coordinator.data is None:
             return
         supported = supported_device_ids(coordinator)
-        new_entities: list[ConnectBoxSensor] = []
+        new_entities: list[SensorEntity] = []
         for room in coordinator.data.rooms:
             for device in room.devices:
                 if device.device_id not in supported:
                     continue
+                if (device.device_id, "fan_status") not in known:
+                    new_entities.append(
+                        ConnectBoxFanStatusSensor(coordinator, device.device_id)
+                    )
+                    known.add((device.device_id, "fan_status"))
                 for description in SENSORS:
                     identity = (device.device_id, description.key)
                     if identity in known:
@@ -271,3 +286,60 @@ class ConnectBoxSensor(ConnectBoxDeviceEntity, SensorEntity):
         if self.entity_description.available_without_value:
             return True
         return self.native_value is not None
+
+
+class ConnectBoxFanStatusSensor(ConnectBoxDeviceEntity, SensorEntity):
+    """What the unit is doing right now, with the details as attributes.
+
+    One entity for dashboards: global standby, boost, summer ventilation,
+    standby, level 1–4 or sensor-controlled operation, plus the fan speeds,
+    the active situation, end times and active fault codes.
+    """
+
+    entity_description = SensorEntityDescription(
+        key="fan_status",
+        translation_key="fan_status",
+        device_class=SensorDeviceClass.ENUM,
+        options=FAN_STATUS_OPTIONS,
+    )
+
+    def __init__(self, coordinator, device_id: int) -> None:
+        super().__init__(coordinator, device_id)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_{device_id}_fan_status"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the combined operating status."""
+        data = self.device_data
+        if data is None or self.coordinator.data is None:
+            return None
+        room, device = data
+        return fan_status(self.coordinator.data.run_state, room, device, time.time())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """Expose the values a status card needs in one place."""
+        data = self.device_data
+        if data is None or self.coordinator.data is None:
+            return None
+        room, device = data
+        run_state = self.coordinator.data.run_state
+        level = room.current_level(run_state.temperature_mode)
+        codes = error_codes(device)
+        return {
+            "level": level if level in (0, 1, 2, 3, 4) else None,
+            "situation": situation(run_state),
+            "supply_fan_speed": SUPPLY_FAN_SPEED.value(device),
+            "exhaust_fan_speed": EXHAUST_FAN_SPEED.value(device),
+            "supply_only": supply_only_operation(device),
+            "temporary_until": _temporary_until(room),
+            "boost_until": _boost_until(room),
+            "fault": bool(codes),
+            "error_codes": codes,
+        }
+
+    @property
+    def available(self) -> bool:
+        """Report unavailable while the status cannot be determined."""
+        return super().available and self.native_value is not None

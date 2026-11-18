@@ -83,7 +83,12 @@
         "name": "Zuluftbetrieb"
       },
       "fault": {
-        "name": "Störung"
+        "name": "Störung",
+        "state_attributes": {
+          "error_codes": {
+            "name": "Fehlercodes"
+          }
+        }
       },
       "filter_warning": {
         "name": "Filterwechsel erforderlich",
@@ -127,6 +132,10 @@
         "state_attributes": {
           "preset_mode": {
             "state": {
+              "level_1": "Stufe 1",
+              "level_2": "Stufe 2",
+              "level_3": "Stufe 3",
+              "level_4": "Stufe 4",
               "auto": "Automatik (Sensor)"
             }
           }
@@ -241,6 +250,64 @@
           "supply_and_exhaust": "Zu- und Abluft",
           "supply": "Zuluft",
           "exhaust": "Abluft"
+        }
+      },
+      "fan_status": {
+        "name": "Lüfterstatus",
+        "state": {
+          "off": "Aus (zentral)",
+          "standby": "Standby",
+          "level_1": "Stufe 1",
+          "level_2": "Stufe 2",
+          "level_3": "Stufe 3",
+          "level_4": "Stufe 4",
+          "auto": "Automatik (Sensor)",
+          "boost": "Stoßlüftung",
+          "summer_ventilation": "Sommerlüftung"
+        },
+        "state_attributes": {
+          "level": {
+            "name": "Stufe"
+          },
+          "situation": {
+            "name": "Situation",
+            "state": {
+              "awake": "Daheim",
+              "asleep": "Schlafen",
+              "away": "Abwesend",
+              "antifreeze": "Frostschutz",
+              "override": "Vorübergehend geändert"
+            }
+          },
+          "supply_fan_speed": {
+            "name": "Zuluftlüfter-Drehzahl"
+          },
+          "exhaust_fan_speed": {
+            "name": "Fortluftlüfter-Drehzahl"
+          },
+          "supply_only": {
+            "name": "Zuluftbetrieb",
+            "state": {
+              "true": "Ja",
+              "false": "Nein"
+            }
+          },
+          "temporary_until": {
+            "name": "Temporäre Änderung bis"
+          },
+          "boost_until": {
+            "name": "Stoßlüftung bis"
+          },
+          "fault": {
+            "name": "Störung",
+            "state": {
+              "true": "Ja",
+              "false": "Nein"
+            }
+          },
+          "error_codes": {
+            "name": "Fehlercodes"
+          }
         }
       }
     },

@@ -83,7 +83,12 @@
         "name": "Supply-only operation"
       },
       "fault": {
-        "name": "Fault"
+        "name": "Fault",
+        "state_attributes": {
+          "error_codes": {
+            "name": "Error codes"
+          }
+        }
       },
       "filter_warning": {
         "name": "Filter replacement required",
@@ -127,6 +132,10 @@
         "state_attributes": {
           "preset_mode": {
             "state": {
+              "level_1": "Level 1",
+              "level_2": "Level 2",
+              "level_3": "Level 3",
+              "level_4": "Level 4",
               "auto": "Auto (sensor)"
             }
           }
@@ -241,6 +250,64 @@
           "supply_and_exhaust": "Supply and exhaust",
           "supply": "Supply",
           "exhaust": "Exhaust"
+        }
+      },
+      "fan_status": {
+        "name": "Fan status",
+        "state": {
+          "off": "Off (central)",
+          "standby": "Standby",
+          "level_1": "Level 1",
+          "level_2": "Level 2",
+          "level_3": "Level 3",
+          "level_4": "Level 4",
+          "auto": "Auto (sensor)",
+          "boost": "Boost",
+          "summer_ventilation": "Summer ventilation"
+        },
+        "state_attributes": {
+          "level": {
+            "name": "Level"
+          },
+          "situation": {
+            "name": "Situation",
+            "state": {
+              "awake": "At home",
+              "asleep": "Asleep",
+              "away": "Away",
+              "antifreeze": "Frost protection",
+              "override": "Temporarily changed"
+            }
+          },
+          "supply_fan_speed": {
+            "name": "Supply fan speed"
+          },
+          "exhaust_fan_speed": {
+            "name": "Exhaust fan speed"
+          },
+          "supply_only": {
+            "name": "Supply-only operation",
+            "state": {
+              "true": "Yes",
+              "false": "No"
+            }
+          },
+          "temporary_until": {
+            "name": "Temporary change until"
+          },
+          "boost_until": {
+            "name": "Boost until"
+          },
+          "fault": {
+            "name": "Fault",
+            "state": {
+              "true": "Yes",
+              "false": "No"
+            }
+          },
+          "error_codes": {
+            "name": "Error codes"
+          }
         }
       }
     },
