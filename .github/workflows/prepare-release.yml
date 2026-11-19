@@ -1,0 +1,54 @@
+name: Prepare release
+
+"on":
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (for example, v0.3.2)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      RELEASE_ARCHIVE: zehnder_connectbox.zip
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Build and verify installation ZIP
+        shell: bash
+        run: |
+          tag_ref="refs/tags/$RELEASE_TAG"
+          if ! git show-ref --verify --quiet "$tag_ref"; then
+            echo "::error::Tag '$RELEASE_TAG' does not exist. Push the release tag first."
+            exit 1
+          fi
+
+          component_path="custom_components/zehnder_connectbox"
+          version=$(git show "$tag_ref:$component_path/manifest.json" | jq -er '.version')
+          if [[ "$RELEASE_TAG" != "v$version" ]]; then
+            echo "::error::Tag '$RELEASE_TAG' must match manifest version '$version' with a v prefix."
+            exit 1
+          fi
+
+          git archive --format=zip --output="$RELEASE_ARCHIVE" "$tag_ref:$component_path"
+          unzip -tq "$RELEASE_ARCHIVE"
+
+      - name: Create release draft with installation ZIP
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create --verify-tag --draft --generate-notes --title "$RELEASE_TAG" \
+            -- "$RELEASE_TAG" "$RELEASE_ARCHIVE"

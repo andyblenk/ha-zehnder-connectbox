@@ -5,6 +5,13 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-19
+
+### Changed
+
+- Distribute the integration as a dedicated ZIP release asset for HACS and
+  Home Assistant Marketplace installations and updates.
+
 ## [0.3.1] - 2026-11-17
 
 ### Added
@@ -105,7 +112,8 @@ project follows [Semantic Versioning](https://semver.org/).
 - ComfoSpot 50 filter-timer reset button with gateway acknowledgements, state
   readback, and documented dashboard confirmation.
 
-[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/andyblenk/ha-zehnder-connectbox/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/andyblenk/ha-zehnder-connectbox/releases/tag/v0.2.0
