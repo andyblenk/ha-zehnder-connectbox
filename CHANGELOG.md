@@ -5,6 +5,11 @@ project follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Declare Home Assistant 2025.3.0 as the minimum version in HACS because
+  earlier versions lack the entity setup callback used by the integration.
+
 ## [0.3.2] - 2026-11-19
 
 ### Changed
