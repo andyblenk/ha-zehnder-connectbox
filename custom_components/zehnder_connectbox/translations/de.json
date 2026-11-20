@@ -83,7 +83,12 @@
         "name": "Zuluftbetrieb"
       },
       "fault": {
-        "name": "Störung"
+        "name": "Störung",
+        "state_attributes": {
+          "error_codes": {
+            "name": "Fehlercodes"
+          }
+        }
       },
       "filter_warning": {
         "name": "Filterwechsel erforderlich",
@@ -119,6 +124,9 @@
           "off": "Nicht verfügbar",
           "on": "Verfügbar"
         }
+      },
+      "absence_active": {
+        "name": "Abwesenheit läuft"
       }
     },
     "fan": {
@@ -127,6 +135,10 @@
         "state_attributes": {
           "preset_mode": {
             "state": {
+              "level_1": "Stufe 1",
+              "level_2": "Stufe 2",
+              "level_3": "Stufe 3",
+              "level_4": "Stufe 4",
               "auto": "Automatik (Sensor)"
             }
           }
@@ -196,6 +208,42 @@
           "antifreeze": "Frostschutz",
           "override": "Vorübergehend geändert"
         }
+      },
+      "summer_ventilation_role": {
+        "name": "Rolle Sommerlüftung",
+        "state": {
+          "supply_and_exhaust": "Zu- und Abluft",
+          "supply": "Zuluft",
+          "exhaust": "Abluft"
+        }
+      },
+      "active_week_plan": {
+        "name": "Aktiver Wochenplan"
+      },
+      "system_language": {
+        "name": "System-Sprache",
+        "state": {
+          "german": "Deutsch",
+          "english": "Englisch",
+          "french": "Französisch",
+          "dutch": "Niederländisch",
+          "spanish": "Spanisch",
+          "portuguese": "Portugiesisch",
+          "italian": "Italienisch"
+        }
+      },
+      "room_type": {
+        "name": "Raumtyp",
+        "state": {
+          "living_room": "Wohnzimmer",
+          "kitchen": "Küche",
+          "bathroom": "Badezimmer",
+          "toilet": "WC",
+          "bedroom": "Schlafzimmer",
+          "dining_room": "Esszimmer",
+          "office": "Büro",
+          "other": "Sonstiger Raum"
+        }
       }
     },
     "sensor": {
@@ -242,6 +290,132 @@
           "supply": "Zuluft",
           "exhaust": "Abluft"
         }
+      },
+      "fan_status": {
+        "name": "Lüfterstatus",
+        "state": {
+          "off": "Aus (zentral)",
+          "standby": "Standby",
+          "level_1": "Stufe 1",
+          "level_2": "Stufe 2",
+          "level_3": "Stufe 3",
+          "level_4": "Stufe 4",
+          "auto": "Automatik (Sensor)",
+          "boost": "Stoßlüftung",
+          "summer_ventilation": "Sommerlüftung"
+        },
+        "state_attributes": {
+          "level": {
+            "name": "Stufe"
+          },
+          "situation": {
+            "name": "Situation",
+            "state": {
+              "awake": "Daheim",
+              "asleep": "Schlafen",
+              "away": "Abwesend",
+              "antifreeze": "Frostschutz",
+              "override": "Vorübergehend geändert"
+            }
+          },
+          "supply_fan_speed": {
+            "name": "Zuluftlüfter-Drehzahl"
+          },
+          "exhaust_fan_speed": {
+            "name": "Fortluftlüfter-Drehzahl"
+          },
+          "supply_only": {
+            "name": "Zuluftbetrieb",
+            "state": {
+              "true": "Ja",
+              "false": "Nein"
+            }
+          },
+          "temporary_until": {
+            "name": "Temporäre Änderung bis"
+          },
+          "boost_until": {
+            "name": "Stoßlüftung bis"
+          },
+          "fault": {
+            "name": "Störung",
+            "state": {
+              "true": "Ja",
+              "false": "Nein"
+            }
+          },
+          "error_codes": {
+            "name": "Fehlercodes"
+          }
+        }
+      },
+      "bath_function": {
+        "name": "Badfunktion",
+        "state": {
+          "locked": "Gesperrt",
+          "enabled": "Freigegeben"
+        }
+      },
+      "automatic_sensors": {
+        "name": "Betriebs-Modus Automatik",
+        "state": {
+          "humidity": "Feuchte",
+          "air_quality": "Luftqualität",
+          "both": "Beide"
+        }
+      },
+      "error_log": {
+        "name": "Fehlerprotokoll"
+      },
+      "day_plan": {
+        "name": "Tagesplan"
+      },
+      "week_plan": {
+        "name": "Wochenplan"
+      },
+      "history": {
+        "name": "Verlauf"
+      },
+      "radio_duty_cycle": {
+        "name": "Funk-Auslastung"
+      },
+      "users": {
+        "name": "Benutzer",
+        "unit_of_measurement": "Benutzer"
+      },
+      "country": {
+        "name": "Land",
+        "state": {
+          "united_kingdom": "Großbritannien",
+          "germany": "Deutschland",
+          "france": "Frankreich",
+          "netherlands": "Niederlande",
+          "spain": "Spanien",
+          "portugal": "Portugal",
+          "italy": "Italien",
+          "switzerland": "Schweiz",
+          "austria": "Österreich",
+          "belgium": "Belgien"
+        }
+      },
+      "network_connection": {
+        "name": "Netzwerkverbindung",
+        "state": {
+          "lan": "LAN",
+          "wifi_access_point": "WLAN-Zugangspunkt",
+          "wifi": "WLAN"
+        }
+      },
+      "system_version": {
+        "name": "Systemversion"
+      },
+      "firmware_update": {
+        "name": "Firmware-Update",
+        "state": {
+          "up_to_date": "Aktuell",
+          "updating": "Wird aktualisiert",
+          "queued": "In Warteschlange"
+        }
       }
     },
     "switch": {
@@ -253,11 +427,61 @@
       },
       "summer_ventilation_enabled": {
         "name": "Sommerlüftung freigeben"
+      },
+      "boost": {
+        "name": "Stoßlüftung"
+      },
+      "absence_planner": {
+        "name": "Abwesenheitsplaner"
+      },
+      "remote_access": {
+        "name": "Zugriff über Internet"
+      },
+      "presence": {
+        "name": "Daheim",
+        "state_attributes": {
+          "source": {
+            "name": "Quelle",
+            "state": {
+              "schedule": "Zeitplan",
+              "user": "Vom Benutzer geändert",
+              "no_schedule": "Kein Zeitplan",
+              "presence_home": "Auf Daheim geschaltet"
+            }
+          }
+        }
       }
     },
     "number": {
       "summer_ventilation_duration": {
         "name": "Sommerlüftungsdauer"
+      },
+      "boost_duration": {
+        "name": "Stoßlüftungsdauer"
+      },
+      "level_one_runtime": {
+        "name": "Betriebszeit Lüfterstufe 1/Stunde"
+      }
+    },
+    "datetime": {
+      "absence_start": {
+        "name": "Abwesenheit Beginn"
+      },
+      "absence_end": {
+        "name": "Abwesenheit Ende"
+      }
+    },
+    "text": {
+      "site_name": {
+        "name": "Systemname"
+      },
+      "room_name": {
+        "name": "Raumname"
+      }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
       }
     }
   },
@@ -322,6 +546,42 @@
     "filter_runtime_unavailable": {
       "message": "Die Filterlaufzeit ist nicht verfügbar. Warte auf aktualisierte Messwerte, bevor du den Filtertimer zurücksetzt."
     },
+    "invalid_summer_role": {
+      "message": "Wähle als Rolle für die Sommerlüftung Zu- und Abluft, Zuluft oder Abluft."
+    },
+    "summer_role_interval_active": {
+      "message": "Die Rolle für die Sommerlüftung kann nicht geändert werden, solange ein Sommerlüftungsintervall läuft."
+    },
+    "summer_role_unsupported": {
+      "message": "Das Ändern der Rolle für die Sommerlüftung wird für dieses Lüftungsgerät nicht unterstützt."
+    },
+    "summer_role_unavailable": {
+      "message": "Das Lüftungsgerät meldet seine Rolle für die Sommerlüftung derzeit nicht."
+    },
+    "invalid_boost_duration": {
+      "message": "Wähle für die Stoßlüftungsdauer einen Wert zwischen 15 und 120 Minuten in 15-Minuten-Schritten."
+    },
+    "boost_active": {
+      "message": "Die Stoßlüftungsdauer kann nicht geändert werden, solange eine Stoßlüftung läuft."
+    },
+    "boost_unsupported": {
+      "message": "Die Stoßlüftung ist für diesen Raum nicht verfügbar."
+    },
+    "boost_mode_unavailable": {
+      "message": "Eine Stoßlüftung kann nur im automatischen oder manuellen Betrieb gestartet werden."
+    },
+    "boost_duration_unavailable": {
+      "message": "Der Raum meldet keine gültige Stoßlüftungsdauer."
+    },
+    "invalid_level_one_runtime": {
+      "message": "Wähle für die Betriebszeit der Lüfterstufe 1 pro Stunde 15, 30, 45 oder 60 Minuten."
+    },
+    "level_one_runtime_unsupported": {
+      "message": "Das Ändern der Betriebszeit der Lüfterstufe 1 wird für dieses Lüftungsgerät nicht unterstützt."
+    },
+    "level_one_runtime_unavailable": {
+      "message": "Das Lüftungsgerät meldet die Betriebszeit der Lüfterstufe 1 derzeit nicht."
+    },
     "command_rejected": {
       "message": "Die ConnectBox hat den Befehl abgelehnt. Prüfe den Betriebszustand und die Einstellungen in der App."
     },
@@ -330,6 +590,159 @@
     },
     "cannot_connect": {
       "message": "Die Kommunikation mit der ConnectBox ist fehlgeschlagen. Prüfe die Verbindung und den tatsächlichen Gerätezustand vor einem erneuten Versuch."
+    },
+    "week_plan_unknown": {
+      "message": "Die ConnectBox kennt diesen Wochenplan nicht. Aktualisiere die Integration."
+    },
+    "absence_period_missing": {
+      "message": "Lege zuerst Beginn und Ende der Abwesenheit fest."
+    },
+    "absence_period_invalid": {
+      "message": "Die Abwesenheit muss nach ihrem Beginn enden."
+    },
+    "absence_period_past": {
+      "message": "Die Abwesenheit muss in der Zukunft enden."
+    },
+    "plan_locked": {
+      "message": "Eine andere App bearbeitet diesen Plan gerade. Versuche es erneut, sobald er dort gespeichert ist."
+    },
+    "plan_unknown": {
+      "message": "Die ConnectBox kennt diesen Plan nicht. Gib Namen oder ID eines Plans an, wie sie der Wochenplan-Sensor zeigt."
+    },
+    "plan_ambiguous": {
+      "message": "Mehrere Pläne haben diesen Namen. Gib stattdessen die ID des Plans an."
+    },
+    "plan_active": {
+      "message": "Der aktive Wochenplan kann nicht gelöscht werden. Aktiviere zuerst einen anderen."
+    },
+    "plan_in_use": {
+      "message": "Ein Wochenplan verwendet diesen Tagesplan noch. Ändere zuerst den Wochenplan."
+    },
+    "schedules_unavailable": {
+      "message": "Die Pläne liegen von der ConnectBox noch nicht vor. Versuche es nach der nächsten Aktualisierung erneut."
+    },
+    "day_plan_incomplete": {
+      "message": "Ein neuer Tagesplan braucht einen Namen und seine Schaltzeiten."
+    },
+    "week_plan_incomplete": {
+      "message": "Ein neuer Wochenplan braucht einen Namen und seine Tagespläne."
+    },
+    "invalid_day_plan_slots": {
+      "message": "Ein Tagesplan braucht Schaltzeiten innerhalb des Tages, jede nur einmal, eine davon um 00:00."
+    },
+    "invalid_week_plan_days": {
+      "message": "Gib für jeden Tag einen Tagesplan an oder einen für die ganze Woche."
+    },
+    "function_room_invalid": {
+      "message": "Eine Stoßlüftung braucht einen Raum, dessen Lüftungsgerät die Stoßlüftung anbietet."
+    },
+    "config_entry_required": {
+      "message": "Es sind mehrere ConnectBoxen eingerichtet. Wähle die zu ändernde aus."
+    },
+    "not_loaded": {
+      "message": "Die ConnectBox ist nicht geladen."
+    },
+    "site_locked": {
+      "message": "Eine andere App bearbeitet gerade die Systemeinstellungen. Versuche es erneut, sobald sie dort gespeichert sind."
+    },
+    "invalid_name": {
+      "message": "Gib einen Namen mit 1 bis {max_bytes} Bytes ein."
+    },
+    "language_not_selectable": {
+      "message": "Wähle Deutsch, Englisch, Französisch oder Niederländisch, wie in der App."
+    },
+    "presence_needs_schedule": {
+      "message": "Daheim und Abwesend lassen sich so nur umschalten, während der Zeitplan läuft (Automatikbetrieb)."
+    },
+    "firmware_update_locked": {
+      "message": "Eine andere App aktualisiert gerade die Firmware."
+    },
+    "firmware_update_running": {
+      "message": "Ein Firmware-Upload läuft bereits."
+    },
+    "firmware_not_newer": {
+      "message": "Im Ordner zehnder_connectbox wurde kein Firmware-Paket gefunden, das neuer als die installierte Version ist."
+    },
+    "firmware_invalid": {
+      "message": "Das Firmware-Paket wurde geändert oder ist nicht mehr gültig. Kopiere es erneut aus der offiziellen App."
+    }
+  },
+  "services": {
+    "save_day_plan": {
+      "name": "Tagesplan speichern",
+      "description": "Legt einen Tagesplan an oder ändert einen, wie auf der Seite Pläne der App. Weggelassene Teile bleiben unverändert.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "Die zu ändernde ConnectBox; nur bei mehreren nötig."
+        },
+        "plan": {
+          "name": "Plan",
+          "description": "Name oder ID des zu ändernden Tagesplans. Weglassen, um einen neuen anzulegen."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name des Plans (bis 32 Bytes)."
+        },
+        "slots": {
+          "name": "Schaltzeiten",
+          "description": "Liste aus {start: HH:MM, situation: awake (Daheim), asleep (Schlafen) oder away (Abwesend)}; eine davon um 00:00."
+        },
+        "functions": {
+          "name": "Funktionen",
+          "description": "Liste aus {start: HH:MM, function: boost (Stoßlüftung) oder summer_ventilation (Sommerlüftung), duration_minutes, room}; der Raum (Name oder ID) wird für eine Stoßlüftung gebraucht. Eine leere Liste entfernt alle Funktionen."
+        }
+      }
+    },
+    "remove_day_plan": {
+      "name": "Tagesplan löschen",
+      "description": "Löscht einen Tagesplan, den kein Wochenplan verwendet.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "Die zu ändernde ConnectBox; nur bei mehreren nötig."
+        },
+        "plan": {
+          "name": "Plan",
+          "description": "Name oder ID des Tagesplans."
+        }
+      }
+    },
+    "save_week_plan": {
+      "name": "Wochenplan speichern",
+      "description": "Legt einen Wochenplan an oder ändert einen. Weggelassene Teile bleiben unverändert.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "Die zu ändernde ConnectBox; nur bei mehreren nötig."
+        },
+        "plan": {
+          "name": "Plan",
+          "description": "Name oder ID des zu ändernden Wochenplans. Weglassen, um einen neuen anzulegen."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name des Plans (bis 32 Bytes)."
+        },
+        "days": {
+          "name": "Tage",
+          "description": "Tagespläne (Name oder ID) für Montag bis Sonntag, oder einer für die ganze Woche."
+        }
+      }
+    },
+    "remove_week_plan": {
+      "name": "Wochenplan löschen",
+      "description": "Löscht einen Wochenplan, der nicht aktiv ist.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "Die zu ändernde ConnectBox; nur bei mehreren nötig."
+        },
+        "plan": {
+          "name": "Plan",
+          "description": "Name oder ID des Wochenplans."
+        }
+      }
     }
   }
 }

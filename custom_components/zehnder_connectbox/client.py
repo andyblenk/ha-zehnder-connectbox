@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import replace
 from uuid import UUID, uuid4
 
@@ -14,44 +15,88 @@ from .const import (
     VENTILATION_LEVELS,
 )
 from .errors import CommandValidationError
+from .firmware import FirmwarePackage
 from .models import (
+    ActionLogEntry,
     AttachedDevice,
+    DayPlan,
     GatewaySnapshot,
+    PairedApp,
     PairingData,
     PropertyKey,
     PropertyValue,
     Room,
     RunMode,
     RunState,
+    ScheduledFunction,
+    Schedules,
+    SiteInfo,
     SummerVentilationSettings,
     TemperatureMode,
+    UpdateProgress,
     VersionInfo,
+    WeekPlan,
 )
 from .profiles import (
+    BOOST_DURATION_MAXIMUM,
+    BOOST_DURATION_MINIMUM,
+    BOOST_DURATION_STEP,
+    LEVEL_ONE_RUNTIME,
+    LEVEL_ONE_RUNTIME_VALUES,
+    SUMMER_VENTILATION_ROLE,
+    SUMMER_VENTILATION_ROLES,
     PropertySpec,
-    is_supported,
+    error_hours_property_specs_for_device,
     fan_state_property_specs_for_device,
+    is_supported,
     optional_property_specs_for_device,
     property_specs_for_device,
+    settings_property_specs_for_device,
+    supports_boost,
     supports_sensor_mode,
     supports_summer_ventilation,
 )
+from .protobuf import ProtobufDecodeError
 from .protocol import (
+    ROOM_BOOST_DURATION,
+    UPGRADE_BLOCK_SIZE,
+    Operation,
     OperationType,
     PropertySequenceCommand,
     ProtocolError,
+    UpgradeCommand,
+    decode_action_log,
+    decode_day_plan_confirm,
+    decode_local_time_offset,
+    decode_paired_apps,
     decode_pairing,
+    decode_remote_access,
     decode_rooms,
     decode_run_state,
+    decode_schedules,
+    decode_site_info,
     decode_summer_ventilation_settings,
+    decode_update_progress,
     decode_version,
+    decode_week_plan_confirm,
+    encode_active_week_plan,
+    encode_day_plan,
     encode_filter_reset_room,
     encode_pairing,
+    encode_plan_id,
     encode_property_request,
     encode_property_update,
+    encode_remote_access,
+    encode_room_boost,
     encode_room_level,
+    encode_room_number_update,
+    encode_room_settings,
     encode_run_state,
+    encode_site_info,
+    encode_standby_time_range,
     encode_summer_ventilation_settings,
+    encode_upgrade,
+    encode_week_plan,
 )
 from .session import ConnectBoxSession, GatewayResponseError
 from .transport import ConnectBoxTransport, TransportError
@@ -63,12 +108,68 @@ LEVEL_SETTLE_POLL_INTERVAL = 0.5
 SUMMER_SETTLE_TIMEOUT = 8.0
 SUMMER_SETTLE_POLL_INTERVAL = 0.5
 COMMAND_SETTLE_TIMEOUT = 10.0
+# A started boost may end this many seconds later than the room's duration
+# allows (clock differences) before it is stopped again as unexpected.
+BOOST_END_TOLERANCE = 300
+SCHEDULES_REFRESH_INTERVAL = 15 * 60.0
+SCHEDULES_REQUEST_TIMEOUT = 4.0
+SCHEDULES_RETRY_INTERVAL = 60.0
+# The history and the internet-access setting are stored on the gateway, so
+# reading them does not use the radio link. The history is read again after
+# the gateway announced a new entry and otherwise every few minutes.
+ACTION_LOG_REFRESH_INTERVAL = 5 * 60.0
+ACTION_LOG_RETRY_INTERVAL = 60.0
+# Read together, in this order: the time first, because the history and the
+# users report the gateway's local time.
+GATEWAY_READS: tuple[tuple[str, OperationType, OperationType], ...] = (
+    ("time", OperationType.TIME_REQUEST, OperationType.TIME_CONFIRM),
+    ("history", OperationType.ACTION_LOG_REQUEST, OperationType.ACTION_LOG_CONFIRM),
+    (
+        "remote_access",
+        OperationType.REMOTE_ACCESS_REQUEST,
+        OperationType.REMOTE_ACCESS_CONFIRM,
+    ),
+    ("site", OperationType.SITE_INFO_REQUEST, OperationType.SITE_INFO_CONFIRM),
+    ("users", OperationType.PAIRED_APPS_REQUEST, OperationType.PAIRED_APPS_CONFIRM),
+    (
+        "update",
+        OperationType.UPDATE_PROGRESS_REQUEST,
+        OperationType.UPDATE_PROGRESS_CONFIRM,
+    ),
+)
+# The app waits at least a minute for the answer to each firmware block.
+UPGRADE_REQUEST_TIMEOUT = 60.0
+# Run-state field 3 of the app's enumeration: the situation was changed by
+# a user, or presence was switched to at home, while the schedule runs.
+PRESENCE_LOCATION_HOME = 1
+PRESENCE_LOCATION_AWAY = 2
+# Gateway results of the app's enumeration (LOCKED, NOT_EXIST).
+RESULT_NOT_EXIST = 7
+RESULT_LOCKED = 9
+# Slow sequences read with the filter refresh, each in its own sequence after
+# the optional settings, so a unit that rejects one keeps its other telemetry.
+SLOW_PROPERTY_SEQUENCES: dict[
+    str, Callable[[AttachedDevice], tuple[PropertySpec, ...]]
+] = {
+    "settings": settings_property_specs_for_device,
+    "error_hours": error_hours_property_specs_for_device,
+}
 # The app's manual mode offers the situations at home and away. The run-state
 # update carries them as the user location next to the run mode.
 SITUATION_LOCATIONS = {
     TemperatureMode.AWAKE: 1,
     TemperatureMode.AWAY: 2,
 }
+
+
+def _function_order(item: ScheduledFunction) -> tuple[int, int, int, int, int]:
+    return (
+        item.start_minute,
+        item.function,
+        item.duration_minutes,
+        item.room_id,
+        item.device_id,
+    )
 
 
 class PairingError(ConnectionError):
@@ -101,6 +202,24 @@ class ConnectBoxClient:
         self._fully_requested_devices: set[tuple[int, int, int | None]] = set()
         self._rejected_optional_devices: set[tuple[int, int, int | None]] = set()
         self._rejected_fan_state_devices: set[tuple[int, int, int | None]] = set()
+        # Units that rejected one of the slow sequences, per sequence.
+        self._rejected_slow_devices: dict[str, set[tuple[int, int, int | None]]] = {
+            name: set() for name in SLOW_PROPERTY_SEQUENCES
+        }
+        self._schedules: Schedules | None = None
+        self._schedules_read: float | None = None
+        self._schedules_unsupported = False
+        self._schedules_retry_after = 0.0
+        self._action_log: tuple[ActionLogEntry, ...] | None = None
+        self._remote_access: bool | None = None
+        self._site: SiteInfo | None = None
+        self._paired_apps: tuple[PairedApp, ...] | None = None
+        self._update_progress: UpdateProgress | None = None
+        self._action_log_read: float | None = None
+        self._action_log_retry_after = 0.0
+        self._local_time_offset: int | None = None
+        # Gateway reads (see GATEWAY_READS) the gateway refused.
+        self.unsupported_gateway_reads: set[str] = set()
 
     @classmethod
     def pair(
@@ -174,12 +293,15 @@ class ConnectBoxClient:
         *,
         refresh_properties: bool,
         refresh_filter_properties: bool = False,
-        expected_property_values: dict[
-            tuple[int, tuple[int, int, int]], bytes
-        ]
+        expected_property_values: dict[tuple[int, tuple[int, int, int]], bytes]
         | None = None,
+        refresh_schedules: bool = False,
     ) -> GatewaySnapshot:
-        """Read a complete state snapshot from the gateway."""
+        """Read a complete state snapshot from the gateway.
+
+        The schedule list is only read again with refresh_schedules, which
+        the regular poll sets; the read-back after a command reuses it.
+        """
         try:
             version = self._version or self._read_version()
             run_state = self._read_run_state()
@@ -197,7 +319,25 @@ class ConnectBoxClient:
                 )
             rooms = self._restore_device_properties(rooms)
             self._remember_device_properties(rooms)
-            return GatewaySnapshot(version, run_state, rooms, summer_settings)
+            schedules = (
+                self._read_schedules(run_state)
+                if refresh_schedules
+                else self._schedules
+            )
+            if refresh_schedules:
+                self._read_action_log()
+            return GatewaySnapshot(
+                version,
+                run_state,
+                rooms,
+                summer_settings,
+                schedules,
+                action_log=self._action_log,
+                remote_access=self._remote_access,
+                site=self._site,
+                paired_apps=self._paired_apps,
+                update_progress=self._update_progress,
+            )
         except (ProtocolError, TransportError):
             self.close()
             raise
@@ -269,7 +409,9 @@ class ConnectBoxClient:
                     after.run_mode != before.run_mode
                     or after.temperature_mode != before.temperature_mode
                 ):
-                    raise ProtocolError("run mode or situation changed during summer ventilation")
+                    raise ProtocolError(
+                        "run mode or situation changed during summer ventilation"
+                    )
                 confirmed = (
                     after.summer_ventilation_running(time.time()) is True
                     if enabled
@@ -402,8 +544,10 @@ class ConnectBoxClient:
             )
             run_state = self._wait_for(
                 self._read_run_state,
-                lambda state: state.run_mode == RunMode.MANUAL
-                and state.temperature_mode == temperature_mode,
+                lambda state: (
+                    state.run_mode == RunMode.MANUAL
+                    and state.temperature_mode == temperature_mode
+                ),
             )
             if (
                 run_state.run_mode != RunMode.MANUAL
@@ -523,6 +667,676 @@ class ConnectBoxClient:
             self.close()
             raise
 
+    def set_summer_ventilation_role(
+        self, device_id: int, property_key: PropertyKey, role: int
+    ) -> GatewaySnapshot:
+        """Write a unit's summer ventilation role and read it back.
+
+        The official app sets the role on the unit's settings page; the value
+        written from here showed there. It is refused while a summer interval
+        runs.
+        """
+        if property_key.value_identity != SUMMER_VENTILATION_ROLE.key:
+            raise ValueError("unexpected summer-role property")
+        if role not in SUMMER_VENTILATION_ROLES:
+            raise CommandValidationError("invalid_summer_role")
+        return self._write_optional_setting(
+            device_id,
+            property_key,
+            bytes((role,)),
+            unsupported_key="summer_role_unsupported",
+            check_run_state=lambda run_state: (
+                "summer_role_interval_active" if run_state.summer_ventilation else None
+            ),
+            label="summer ventilation role",
+        )
+
+    def set_level_one_runtime(
+        self, device_id: int, property_key: PropertyKey, minutes: int
+    ) -> GatewaySnapshot:
+        """Write a unit's runtime of level 1 per hour and read it back."""
+        if property_key.value_identity != LEVEL_ONE_RUNTIME.key:
+            raise ValueError("unexpected level-one runtime property")
+        if (
+            isinstance(minutes, bool)
+            or not isinstance(minutes, int)
+            or minutes not in LEVEL_ONE_RUNTIME_VALUES
+        ):
+            raise CommandValidationError("invalid_level_one_runtime")
+        return self._write_optional_setting(
+            device_id,
+            property_key,
+            bytes((minutes,)),
+            unsupported_key="level_one_runtime_unsupported",
+            label="level-one runtime",
+        )
+
+    def _write_optional_setting(
+        self,
+        device_id: int,
+        property_key: PropertyKey,
+        expected: bytes,
+        *,
+        unsupported_key: str,
+        label: str,
+        check_run_state: Callable[[RunState], str | None] | None = None,
+    ) -> GatewaySnapshot:
+        """Write one setting of the optional sequence (38.0.9-11) and read it back.
+
+        The setting is written like the filter runtime, as one device-property
+        write with the key the gateway reported, and then requested again in
+        its verified read sequence until the unit reports the written value.
+        """
+        try:
+            if check_run_state is not None:
+                refusal = check_run_state(self._read_run_state())
+                if refusal is not None:
+                    raise CommandValidationError(refusal)
+            device = next(
+                (
+                    item
+                    for room in self._read_rooms()
+                    for item in room.devices
+                    if item.device_id == device_id
+                ),
+                None,
+            )
+            if device is None:
+                raise CommandValidationError("device_unavailable")
+            if not optional_property_specs_for_device(device):
+                raise CommandValidationError(unsupported_key)
+            if property_key.product_type != device.product_type:
+                raise ProtocolError(f"{label} property does not match the device")
+
+            self._connected_session().request(
+                OperationType.SET_DEVICE_PROPERTIES_REQUEST,
+                OperationType.SET_DEVICE_PROPERTIES_CONFIRM,
+                encode_property_update(device_id, property_key, expected),
+            )
+            self._request_properties(device, optional_property_specs_for_device(device))
+            identity = property_key.value_identity
+            deadline = time.monotonic() + COMMAND_SETTLE_TIMEOUT
+            while True:
+                rooms = self._read_rooms()
+                current = next(
+                    (
+                        item
+                        for room in rooms
+                        for item in room.devices
+                        if item.device_id == device_id
+                    ),
+                    None,
+                )
+                if current is not None and current.property_bytes(identity) == expected:
+                    # Keep the read-back value for the following snapshots.
+                    self._remember_device_properties(
+                        self._restore_device_properties(rooms)
+                    )
+                    break
+                if time.monotonic() >= deadline:
+                    raise ProtocolError(f"gateway did not report the written {label}")
+                time.sleep(LEVEL_SETTLE_POLL_INTERVAL)
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_boost_duration(self, room_id: int, minutes: int) -> GatewaySnapshot:
+        """Write a room's boost duration and read it back.
+
+        The room is written back as read with only its boost duration
+        (field 22) changed; the app showed the written value on the room's
+        settings page. The app offers 15 to 120 minutes in steps of 15.
+        """
+        if (
+            isinstance(minutes, bool)
+            or not isinstance(minutes, int)
+            or not BOOST_DURATION_MINIMUM <= minutes <= BOOST_DURATION_MAXIMUM
+            or minutes % BOOST_DURATION_STEP
+        ):
+            raise CommandValidationError("invalid_boost_duration")
+        try:
+            room = self._boost_room(room_id)
+            if room.boost_active(time.time()):
+                raise CommandValidationError("boost_active")
+            self._connected_session().request(
+                OperationType.SET_ROOM_REQUEST,
+                OperationType.SET_ROOM_CONFIRM,
+                encode_room_number_update(room, {ROOM_BOOST_DURATION: minutes}),
+            )
+            written = self._wait_for(
+                lambda: self._find_room(room_id),
+                lambda item: item is None or item.boost_duration == minutes,
+            )
+            if written is None or written.boost_duration != minutes:
+                raise ProtocolError("gateway did not report the written boost duration")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_boost(self, room_id: int, active: bool) -> GatewaySnapshot:
+        """Start a boost for the room's duration or stop it, as the app does.
+
+        The app sends a room-value update with field 15 set to the end of the
+        boost as Unix time, or to 0 to end it early. The write is confirmed by
+        the end the room reports afterwards (room field 18). A reported end
+        later than the duration allows is stopped again and reported.
+        """
+        try:
+            run_state = self._read_run_state()
+            room = self._boost_room(room_id)
+            now = time.time()
+            if room.boost_active(now) is active:
+                return self.read_snapshot(refresh_properties=False)
+            if active:
+                if run_state.run_mode not in (RunMode.AUTOMATIC, RunMode.MANUAL):
+                    raise CommandValidationError("boost_mode_unavailable")
+                duration = room.boost_duration
+                if (
+                    duration is None
+                    or not BOOST_DURATION_MINIMUM <= duration <= BOOST_DURATION_MAXIMUM
+                ):
+                    raise CommandValidationError("boost_duration_unavailable")
+                until = int(now) + duration * 60
+            else:
+                until = 0
+
+            session = self._connected_session()
+            session.request(
+                OperationType.SET_ROOM_VALUE_REQUEST,
+                OperationType.SET_ROOM_VALUE_CONFIRM,
+                encode_room_boost(room_id, until),
+            )
+            written = self._wait_for(
+                lambda: self._find_room(room_id),
+                lambda item: item is None or item.boost_active(time.time()) is active,
+            )
+            if written is None or written.boost_active(time.time()) is not active:
+                raise ProtocolError(
+                    "gateway did not start the boost"
+                    if active
+                    else "gateway did not stop the boost"
+                )
+            if active and (written.boost_until or 0) > until + BOOST_END_TOLERANCE:
+                # Do not leave a boost running longer than the room allows.
+                session.request(
+                    OperationType.SET_ROOM_VALUE_REQUEST,
+                    OperationType.SET_ROOM_VALUE_CONFIRM,
+                    encode_room_boost(room_id, 0),
+                )
+                raise ProtocolError("gateway reported an unexpected boost end")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_active_week_plan(self, plan_id: int) -> GatewaySnapshot:
+        """Make a weekly schedule the active one, as the app's plan page does.
+
+        The gateway confirmed the request and then reported the schedule's ID
+        in the run state (field 6), together with today's daily schedule.
+        """
+        try:
+            schedules = self._schedules
+            if schedules is not None and schedules.week_plan(plan_id) is None:
+                raise CommandValidationError("week_plan_unknown")
+            self._connected_session().request(
+                OperationType.SET_ACTIVE_WEEK_PLAN_REQUEST,
+                OperationType.SET_ACTIVE_WEEK_PLAN_CONFIRM,
+                encode_active_week_plan(plan_id),
+            )
+            run_state = self._wait_for(
+                self._read_run_state, lambda state: state.week_plan == plan_id
+            )
+            if run_state.week_plan != plan_id:
+                raise ProtocolError("gateway did not activate the weekly schedule")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_absence(
+        self, enabled: bool, start: int | None = None, end: int | None = None
+    ) -> GatewaySnapshot:
+        """Save or switch off the absence planner and read it back.
+
+        Switched on, the gateway puts the system into frost protection for the
+        period, as the app explains on the planner's page. A period that is
+        not given is kept as reported; switching off sends the reported period
+        with mode 0, as tested.
+        """
+        try:
+            before = self._read_run_state()
+            start = start if start is not None else before.standby_start
+            end = end if end is not None else before.standby_end
+            if enabled:
+                if start is None or end is None:
+                    raise CommandValidationError("absence_period_missing")
+                if end <= start:
+                    raise CommandValidationError("absence_period_invalid")
+                if end <= time.time():
+                    raise CommandValidationError("absence_period_past")
+            else:
+                start = start or 0
+                end = end or 0
+            self._connected_session().request(
+                OperationType.SET_STANDBY_TIME_RANGE_REQUEST,
+                OperationType.SET_STANDBY_TIME_RANGE_CONFIRM,
+                encode_standby_time_range(enabled, start, end),
+            )
+
+            def saved(state: RunState) -> bool:
+                if not enabled:
+                    return state.absence_planned is False
+                return (
+                    state.absence_planned is True
+                    and state.standby_start == start
+                    and state.standby_end == end
+                )
+
+            run_state = self._wait_for(self._read_run_state, saved)
+            if not saved(run_state):
+                raise ProtocolError("gateway did not report the absence planner")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def save_day_plan(self, plan: DayPlan) -> tuple[GatewaySnapshot, int]:
+        """Add (plan ID 0) or replace a daily schedule and check the result.
+
+        A change is made under the schedule's lock, like the app does, so a
+        plan another client is editing is refused. The stored schedule is read
+        back from the schedule list, which also holds the timed functions.
+        """
+        expected_slots = tuple(sorted(plan.slots))
+        expected_functions = sorted(plan.functions, key=lambda item: item.start_minute)
+        plan = replace(plan, slots=expected_slots, functions=tuple(expected_functions))
+        try:
+            session = self._connected_session()
+            if plan.plan_id == 0:
+                # The gateway dropped the timed functions of a new plan; it
+                # kept them when the plan was changed, so they are added with
+                # a change right after the plan was created.
+                response = session.request(
+                    OperationType.ADD_DAY_PLAN_REQUEST,
+                    OperationType.ADD_DAY_PLAN_CONFIRM,
+                    encode_day_plan(replace(plan, functions=())),
+                )
+                plan_id = decode_day_plan_confirm(response.body).plan_id
+                if plan.functions:
+                    with self._plan_lock(plan_id, week=False):
+                        session.request(
+                            OperationType.SET_DAY_PLAN_REQUEST,
+                            OperationType.SET_DAY_PLAN_CONFIRM,
+                            encode_day_plan(replace(plan, plan_id=plan_id)),
+                        )
+            else:
+                plan_id = plan.plan_id
+                with self._plan_lock(plan_id, week=False):
+                    session.request(
+                        OperationType.SET_DAY_PLAN_REQUEST,
+                        OperationType.SET_DAY_PLAN_CONFIRM,
+                        encode_day_plan(plan),
+                    )
+            stored = self._reload_schedules().day_plan(plan_id)
+            if (
+                stored is None
+                or stored.name != plan.name
+                or tuple(sorted(stored.slots)) != expected_slots
+                or sorted(stored.functions, key=_function_order)
+                != sorted(plan.functions, key=_function_order)
+            ):
+                raise ProtocolError(
+                    "gateway did not store the daily schedule as written"
+                )
+            return self.read_snapshot(refresh_properties=False), plan_id
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def save_week_plan(self, plan: WeekPlan) -> tuple[GatewaySnapshot, int]:
+        """Add (plan ID 0) or replace a weekly schedule and check the result."""
+        try:
+            session = self._connected_session()
+            if plan.plan_id == 0:
+                response = session.request(
+                    OperationType.ADD_WEEK_PLAN_REQUEST,
+                    OperationType.ADD_WEEK_PLAN_CONFIRM,
+                    encode_week_plan(plan),
+                )
+                plan_id = decode_week_plan_confirm(response.body).plan_id
+            else:
+                plan_id = plan.plan_id
+                with self._plan_lock(plan_id, week=True):
+                    session.request(
+                        OperationType.SET_WEEK_PLAN_REQUEST,
+                        OperationType.SET_WEEK_PLAN_CONFIRM,
+                        encode_week_plan(plan),
+                    )
+            stored = self._reload_schedules().week_plan(plan_id)
+            if stored is None or (stored.name, stored.days) != (plan.name, plan.days):
+                raise ProtocolError(
+                    "gateway did not store the weekly schedule as written"
+                )
+            return self.read_snapshot(refresh_properties=False), plan_id
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def remove_plan(self, plan_id: int, *, week: bool) -> GatewaySnapshot:
+        """Remove a daily or weekly schedule and check that it is gone.
+
+        The gateway refused (result 12) to remove a daily schedule that a
+        weekly schedule still used.
+        """
+        try:
+            session = self._connected_session()
+            with self._plan_lock(plan_id, week=week):
+                session.request(
+                    OperationType.REMOVE_WEEK_PLAN_REQUEST
+                    if week
+                    else OperationType.REMOVE_DAY_PLAN_REQUEST,
+                    OperationType.REMOVE_WEEK_PLAN_CONFIRM
+                    if week
+                    else OperationType.REMOVE_DAY_PLAN_CONFIRM,
+                    encode_plan_id(plan_id),
+                )
+            schedules = self._reload_schedules()
+            remaining = (
+                schedules.week_plan(plan_id) if week else schedules.day_plan(plan_id)
+            )
+            if remaining is not None:
+                raise ProtocolError("gateway still lists the removed schedule")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    @contextmanager
+    def _plan_lock(self, plan_id: int, *, week: bool) -> Iterator[None]:
+        """Hold a schedule's lock while it is changed, then release it."""
+        session = self._connected_session()
+        if week:
+            lock = (
+                OperationType.LOCK_WEEK_PLAN_REQUEST,
+                OperationType.LOCK_WEEK_PLAN_CONFIRM,
+            )
+            release = (
+                OperationType.RELEASE_WEEK_PLAN_REQUEST,
+                OperationType.RELEASE_WEEK_PLAN_CONFIRM,
+            )
+        else:
+            lock = (
+                OperationType.LOCK_DAY_PLAN_REQUEST,
+                OperationType.LOCK_DAY_PLAN_CONFIRM,
+            )
+            release = (
+                OperationType.RELEASE_DAY_PLAN_REQUEST,
+                OperationType.RELEASE_DAY_PLAN_CONFIRM,
+            )
+        try:
+            session.request(*lock, encode_plan_id(plan_id))
+        except GatewayResponseError as err:
+            if err.result == RESULT_LOCKED:
+                raise CommandValidationError("plan_locked") from err
+            if err.result == RESULT_NOT_EXIST:
+                raise CommandValidationError("plan_unknown") from err
+            raise
+        try:
+            yield
+        finally:
+            try:
+                session.request(*release, encode_plan_id(plan_id))
+            except (GatewayResponseError, ProtocolError, TransportError):
+                # The connection is closed after a failure, which ends the
+                # session and with it the lock.
+                self.close()
+
+    def _reload_schedules(self) -> Schedules:
+        """Read the schedule list now, after this client changed it."""
+        response = self._connected_session().request(
+            OperationType.SCHEDULES_REQUEST,
+            OperationType.SCHEDULES_CONFIRM,
+            timeout=SCHEDULES_REQUEST_TIMEOUT,
+        )
+        self._schedules = decode_schedules(response.body)
+        self._schedules_read = time.monotonic()
+        self._schedules_unsupported = False
+        return self._schedules
+
+    def set_presence(self, home: bool) -> GatewaySnapshot:
+        """Switch between at home and away while the schedule keeps running.
+
+        Tapping the house on the app's start screen in schedule operation
+        changed the situation to away and back; the run state reported the
+        change as made by the user (field 3 = 2) and the mode stayed
+        automatic. The same update as the app's mode change is sent with the
+        automatic mode and the location.
+        """
+        try:
+            before = self._read_run_state()
+            if before.run_mode != RunMode.AUTOMATIC:
+                raise CommandValidationError("presence_needs_schedule")
+            self._connected_session().request(
+                OperationType.SET_RUN_STATE_REQUEST,
+                OperationType.SET_RUN_STATE_CONFIRM,
+                encode_run_state(
+                    int(RunMode.AUTOMATIC),
+                    PRESENCE_LOCATION_HOME if home else PRESENCE_LOCATION_AWAY,
+                ),
+            )
+
+            def applied(state: RunState) -> bool:
+                away = state.temperature_mode == TemperatureMode.AWAY
+                return state.run_mode == RunMode.AUTOMATIC and away is not home
+
+            run_state = self._wait_for(self._read_run_state, applied)
+            if not applied(run_state):
+                raise ProtocolError("gateway did not report the presence")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def upload_firmware(
+        self, package: FirmwarePackage, progress: Callable[[int, int], None]
+    ) -> None:
+        """Send a firmware package to the ConnectBox as the official app does.
+
+        The package is sent in blocks of 256 bytes, each answered by the
+        gateway before the next one: the first block with the start command,
+        the others with continue, and then a finish request without a block.
+        The gateway checks and installs the package after the finish request
+        and restarts; it then updates the units, as the app's update page
+        shows. A failed upload is aborted, so the installed firmware stays.
+        """
+        data = package.data
+        blocks = -(-len(data) // UPGRADE_BLOCK_SIZE)
+        session = self._connected_session()
+        started = False
+        try:
+            for block in range(blocks):
+                chunk = data[
+                    block * UPGRADE_BLOCK_SIZE : (block + 1) * UPGRADE_BLOCK_SIZE
+                ]
+                command = (
+                    UpgradeCommand.START if block == 0 else UpgradeCommand.CONTINUE
+                )
+                try:
+                    session.request(
+                        OperationType.UPGRADE_REQUEST,
+                        OperationType.UPGRADE_CONFIRM,
+                        encode_upgrade(command, chunk),
+                        timeout=UPGRADE_REQUEST_TIMEOUT,
+                    )
+                except GatewayResponseError as err:
+                    if block == 0 and err.result == RESULT_LOCKED:
+                        raise CommandValidationError("firmware_update_locked") from err
+                    raise
+                started = True
+                progress(block + 1, blocks)
+            session.request(
+                OperationType.UPGRADE_REQUEST,
+                OperationType.UPGRADE_CONFIRM,
+                encode_upgrade(UpgradeCommand.FINISH),
+                timeout=UPGRADE_REQUEST_TIMEOUT,
+            )
+        except (ProtocolError, TransportError, CommandValidationError):
+            if started:
+                self._abort_upload()
+            self.close()
+            raise
+        # The gateway restarts with the new firmware; read its version again.
+        self._version = None
+        self.close()
+
+    def _abort_upload(self) -> None:
+        """Ask the gateway to drop a partly sent package, if it still answers."""
+        session = self._session
+        if session is None:
+            return
+        try:
+            session.request(
+                OperationType.UPGRADE_REQUEST,
+                OperationType.UPGRADE_CONFIRM,
+                encode_upgrade(UpgradeCommand.ABORT),
+                timeout=SCHEDULES_REQUEST_TIMEOUT,
+            )
+        except (ProtocolError, TransportError):
+            pass
+
+    def set_site_info(
+        self, *, name: str | None = None, language: int | None = None
+    ) -> GatewaySnapshot:
+        """Change the system name or language, as the app's settings page.
+
+        The site is read, changed under its lock like in the app, and read
+        back. Country and time zone are sent back as read.
+        """
+        try:
+            session = self._connected_session()
+            try:
+                session.request(
+                    OperationType.LOCK_SITE_REQUEST, OperationType.LOCK_SITE_CONFIRM
+                )
+            except GatewayResponseError as err:
+                if err.result == RESULT_LOCKED:
+                    raise CommandValidationError("site_locked") from err
+                raise
+            try:
+                site = decode_site_info(
+                    session.request(
+                        OperationType.SITE_INFO_REQUEST,
+                        OperationType.SITE_INFO_CONFIRM,
+                    ).body
+                )
+                session.request(
+                    OperationType.SET_SITE_INFO_REQUEST,
+                    OperationType.SET_SITE_INFO_CONFIRM,
+                    encode_site_info(site, name=name, language=language),
+                )
+            finally:
+                try:
+                    session.request(
+                        OperationType.RELEASE_SITE_REQUEST,
+                        OperationType.RELEASE_SITE_CONFIRM,
+                    )
+                except (GatewayResponseError, ProtocolError, TransportError):
+                    # Closing the connection ends the session and its lock.
+                    self.close()
+            written = decode_site_info(
+                self._connected_session()
+                .request(
+                    OperationType.SITE_INFO_REQUEST, OperationType.SITE_INFO_CONFIRM
+                )
+                .body
+            )
+            if (name is not None and written.name != name) or (
+                language is not None and written.language != language
+            ):
+                raise ProtocolError("gateway did not report the written site settings")
+            self._site = written
+            self.unsupported_gateway_reads.discard("site")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_remote_access(self, enabled: bool) -> GatewaySnapshot:
+        """Switch the access over the internet and read the setting back."""
+        try:
+            session = self._connected_session()
+            session.request(
+                OperationType.SET_REMOTE_ACCESS_REQUEST,
+                OperationType.SET_REMOTE_ACCESS_CONFIRM,
+                encode_remote_access(enabled),
+            )
+
+            def read() -> bool | None:
+                return decode_remote_access(
+                    session.request(
+                        OperationType.REMOTE_ACCESS_REQUEST,
+                        OperationType.REMOTE_ACCESS_CONFIRM,
+                    ).body
+                )
+
+            written = self._wait_for(read, lambda value: value is enabled)
+            if written is not enabled:
+                raise ProtocolError("gateway did not report the written access setting")
+            self._remote_access = written
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_room_settings(
+        self, room_id: int, *, name: str | None = None, room_type: int | None = None
+    ) -> GatewaySnapshot:
+        """Change a room's name or type, as the app's room page, and read back."""
+        try:
+            room = self._find_room(room_id)
+            if room is None:
+                raise CommandValidationError("room_unavailable")
+            self._connected_session().request(
+                OperationType.SET_ROOM_REQUEST,
+                OperationType.SET_ROOM_CONFIRM,
+                encode_room_settings(room, name=name, room_type=room_type),
+            )
+
+            def written(item: Room | None) -> bool:
+                return item is not None and (
+                    (name is None or item.name == name)
+                    and (room_type is None or item.room_type == room_type)
+                )
+
+            result = self._wait_for(
+                lambda: self._find_room(room_id),
+                lambda item: item is None or written(item),
+            )
+            if not written(result):
+                raise ProtocolError("gateway did not report the written room settings")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def _find_room(self, room_id: int) -> Room | None:
+        """Read the rooms and return one of them."""
+        return next(
+            (item for item in self._read_rooms() if item.room_id == room_id), None
+        )
+
+    def _boost_room(self, room_id: int) -> Room:
+        """Return a room whose unit offers the boost."""
+        room = self._find_room(room_id)
+        if room is None:
+            raise CommandValidationError("room_unavailable")
+        if not any(supports_boost(room, device) for device in room.devices):
+            raise CommandValidationError("boost_unsupported")
+        return room
+
     def close(self) -> None:
         """Close the shared transport."""
         if self._transport is not None:
@@ -540,8 +1354,172 @@ class ConnectBoxClient:
         )
         transport.connect()
         self._transport = transport
-        self._session = ConnectBoxSession(transport, self.gateway_uuid, self._app_uuid)
+        self._session = ConnectBoxSession(
+            transport,
+            self.gateway_uuid,
+            self._app_uuid,
+            on_unsolicited=self._handle_notification,
+        )
         return self._session
+
+    def _handle_notification(self, operation: Operation, _body: bytes) -> None:
+        """Note what another client changed, from a frame that answers no request.
+
+        The gateway forwards changes of other clients, such as the official
+        app, to every connected client. The affected data is read again with
+        the next poll.
+        """
+        if operation.type == OperationType.SCHEDULES_NOTIFICATION:
+            # A client changed a schedule; read the list again.
+            self._schedules_read = None
+        elif operation.type in (
+            OperationType.ACTION_LOG_NOTIFICATION,
+            OperationType.SITE_INFO_NOTIFICATION,
+        ):
+            # The gateway logged a new entry or a client changed the site;
+            # read the gateway's own data again.
+            self._action_log_read = None
+
+    def _read_action_log(self) -> None:
+        """Read the gateway's own data (GATEWAY_READS) when due.
+
+        Like the schedule list, a request the gateway refuses is not repeated
+        until the integration is reloaded, and a missing answer only delays
+        the next read, so neither fails the snapshot.
+        """
+        now = time.monotonic()
+        if self._session is None or now < self._action_log_retry_after:
+            return
+        if (
+            self._action_log_read is not None
+            and now - self._action_log_read < ACTION_LOG_REFRESH_INTERVAL
+        ):
+            return
+        for name, request, confirm in GATEWAY_READS:
+            if name in self.unsupported_gateway_reads:
+                continue
+            try:
+                response = self._connected_session().request(
+                    request, confirm, timeout=SCHEDULES_REQUEST_TIMEOUT
+                )
+                self._store_gateway_read(name, response.body)
+            except (GatewayResponseError, ProtobufDecodeError):
+                self.unsupported_gateway_reads.add(name)
+                self._store_gateway_read(name, None)
+                self.close()
+                return
+            except (ProtocolError, TransportError):
+                self._action_log_retry_after = now + ACTION_LOG_RETRY_INTERVAL
+                self.close()
+                return
+        self._action_log_read = now
+
+    def _store_gateway_read(self, name: str, body: bytes | None) -> None:
+        """Keep the decoded answer of a gateway read, or forget it (None)."""
+        if name == "time":
+            if body is not None:
+                self._local_time_offset = decode_local_time_offset(body)
+        elif name == "history":
+            self._action_log = (
+                self._unix_time_entries(decode_action_log(body))
+                if body is not None
+                else None
+            )
+        elif name == "remote_access":
+            self._remote_access = (
+                decode_remote_access(body) if body is not None else None
+            )
+        elif name == "site":
+            self._site = decode_site_info(body) if body is not None else None
+        elif name == "users":
+            self._paired_apps = (
+                self._unix_time_apps(decode_paired_apps(body))
+                if body is not None
+                else None
+            )
+        elif name == "update":
+            self._update_progress = (
+                decode_update_progress(body) if body is not None else None
+            )
+
+    def _read_schedules(self, run_state: RunState) -> Schedules | None:
+        """Return the schedule list, read again when it may have changed.
+
+        The list is stored on the gateway, so reading it does not use the
+        radio link. It is read at the start, after the gateway announced a
+        change, when the run state names a schedule the list does not have,
+        and otherwise every SCHEDULES_REFRESH_INTERVAL seconds. A gateway
+        that does not answer the request with a list is not asked again until
+        the integration is reloaded.
+        """
+        cached = self._schedules
+        now = time.monotonic()
+        if self._schedules_unsupported or now < self._schedules_retry_after:
+            return cached
+        if self._session is None:
+            # The connection was just closed, for example after a unit
+            # rejected an optional sequence. The gateway may refuse a new
+            # connection right away, so read the list with the next poll.
+            return cached
+        day_plan = run_state.day_plan
+        fresh = (
+            cached is not None
+            and self._schedules_read is not None
+            and now - self._schedules_read < SCHEDULES_REFRESH_INTERVAL
+            and (
+                run_state.week_plan is None
+                or cached.week_plan(run_state.week_plan) is not None
+            )
+            and (day_plan is None or cached.day_plan(day_plan.plan_id) is not None)
+        )
+        if fresh:
+            return cached
+        try:
+            response = self._connected_session().request(
+                OperationType.SCHEDULES_REQUEST,
+                OperationType.SCHEDULES_CONFIRM,
+                timeout=SCHEDULES_REQUEST_TIMEOUT,
+            )
+            self._schedules = decode_schedules(response.body)
+        except (GatewayResponseError, ProtobufDecodeError):
+            # Keep the snapshot; a refused request may need a new connection.
+            self._schedules_unsupported = True
+            self._schedules = None
+            self.close()
+            return None
+        except (ProtocolError, TransportError):
+            # No usable answer in time: keep the last list and try again later.
+            self._schedules_retry_after = now + SCHEDULES_RETRY_INTERVAL
+            self.close()
+            return cached
+        self._schedules_read = now
+        return self._schedules
+
+    def _unix_time_apps(self, apps: tuple[PairedApp, ...]) -> tuple[PairedApp, ...]:
+        """Turn the gateway's local times into Unix time, where known."""
+        offset = self._local_time_offset
+        if not offset:
+            return apps
+        return tuple(
+            replace(app, last_active=app.last_active - offset)
+            if app.last_active
+            else app
+            for app in apps
+        )
+
+    def _unix_time_entries(
+        self, entries: tuple[ActionLogEntry, ...]
+    ) -> tuple[ActionLogEntry, ...]:
+        """Turn the gateway's local times into Unix time, where known."""
+        offset = self._local_time_offset
+        if not offset:
+            return entries
+        return tuple(
+            replace(entry, timestamp=entry.timestamp - offset)
+            if entry.timestamp
+            else entry
+            for entry in entries
+        )
 
     def _read_version(self) -> VersionInfo:
         response = self._connected_session().request(
@@ -580,9 +1558,7 @@ class ConnectBoxClient:
         rooms: tuple[Room, ...],
         *,
         include_filter_properties: bool,
-        expected_property_values: dict[
-            tuple[int, tuple[int, int, int]], bytes
-        ]
+        expected_property_values: dict[tuple[int, tuple[int, int, int]], bytes]
         | None = None,
     ) -> tuple[Room, ...]:
         devices = [
@@ -594,6 +1570,9 @@ class ConnectBoxClient:
         try:
             fan_state_devices: list[AttachedDevice] = []
             optional_devices: list[AttachedDevice] = []
+            slow_devices: dict[str, list[AttachedDevice]] = {
+                name: [] for name in SLOW_PROPERTY_SEQUENCES
+            }
             for device in devices:
                 device_key = self._property_cache_key(device)
                 request_filter_properties = (
@@ -618,6 +1597,12 @@ class ConnectBoxClient:
                     and optional_property_specs_for_device(device)
                 ):
                     optional_devices.append(device)
+                if request_filter_properties and not expected_property_values:
+                    for name, specs_for in SLOW_PROPERTY_SEQUENCES.items():
+                        if device_key not in self._rejected_slow_devices[
+                            name
+                        ] and specs_for(device):
+                            slow_devices[name].append(device)
                 if request_filter_properties:
                     self._fully_requested_devices.add(device_key)
 
@@ -652,9 +1637,21 @@ class ConnectBoxClient:
                     )
                     self.close()
                     return core_rooms
+            for name, specs_for in SLOW_PROPERTY_SEQUENCES.items():
+                for device in slow_devices[name]:
+                    try:
+                        self._request_properties(device, specs_for(device))
+                    except GatewayResponseError:
+                        # As above: skip this sequence for the unit until the
+                        # integration is reloaded.
+                        self._rejected_slow_devices[name].add(
+                            self._property_cache_key(device)
+                        )
+                        self.close()
+                        return core_rooms
 
             if not expected_property_values:
-                if fan_state_devices or optional_devices:
+                if fan_state_devices or optional_devices or any(slow_devices.values()):
                     return self._read_rooms()
                 return core_rooms
 
@@ -729,6 +1726,8 @@ class ConnectBoxClient:
         self._fully_requested_devices.intersection_update(connected)
         self._rejected_optional_devices.intersection_update(connected)
         self._rejected_fan_state_devices.intersection_update(connected)
+        for rejected in self._rejected_slow_devices.values():
+            rejected.intersection_update(connected)
         for room in rooms:
             for device in room.devices:
                 usable = tuple(value for value in device.properties if value.value)
@@ -743,9 +1742,7 @@ class ConnectBoxClient:
             for device in room.devices:
                 cached = self._property_cache.get(self._property_cache_key(device))
                 if cached is not None:
-                    merged = {
-                        value.key.value_identity: value for value in cached
-                    }
+                    merged = {value.key.value_identity: value for value in cached}
                     for value in device.properties:
                         identity = value.key.value_identity
                         # A property read may temporarily expose an empty value.
