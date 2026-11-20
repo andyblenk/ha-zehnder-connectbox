@@ -244,7 +244,8 @@ def decode_summer_ventilation_settings(message: bytes) -> SummerVentilationSetti
 def encode_summer_ventilation_settings(enabled: bool, duration_hours: int) -> bytes:
     """Build a complete gateway-wide summer function configuration."""
     if not isinstance(enabled, bool):
-        raise ValueError("summer ventilation enabled must be a boolean")
+        # Callers handle invalid settings as ValueError, like the duration.
+        raise ValueError("summer ventilation enabled must be a boolean")  # noqa: TRY004
     if (
         isinstance(duration_hours, bool)
         or not isinstance(duration_hours, int)

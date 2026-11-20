@@ -95,7 +95,9 @@ SENSORS = (
             device, EXTRACT_AIR_TEMPERATURE, EXTRACT_AIR_SENSOR_STATUS
         ),
         exists_fn=lambda device: (
-            temperature_value(device, EXTRACT_AIR_TEMPERATURE, EXTRACT_AIR_SENSOR_STATUS)
+            temperature_value(
+                device, EXTRACT_AIR_TEMPERATURE, EXTRACT_AIR_SENSOR_STATUS
+            )
             is not None
         ),
     ),

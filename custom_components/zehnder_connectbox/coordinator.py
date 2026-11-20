@@ -84,8 +84,7 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         now = time.monotonic()
         refresh_properties = (
             self.data is None
-            or now - self._last_property_refresh
-            >= PROPERTY_REFRESH_INTERVAL
+            or now - self._last_property_refresh >= PROPERTY_REFRESH_INTERVAL
         )
         refresh_filter_properties = (
             self.data is None
