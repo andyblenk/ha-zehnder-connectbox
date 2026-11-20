@@ -102,6 +102,23 @@ async def async_setup_entry(
     add_absence_switch()
     entry.async_on_unload(coordinator.async_add_listener(add_absence_switch))
 
+    remote_added = False
+
+    @callback
+    def add_remote_access_switch() -> None:
+        nonlocal remote_added
+        if (
+            remote_added
+            or coordinator.data is None
+            or coordinator.data.remote_access is None
+        ):
+            return
+        async_add_entities([ConnectBoxRemoteAccessSwitch(coordinator)])
+        remote_added = True
+
+    add_remote_access_switch()
+    entry.async_on_unload(coordinator.async_add_listener(add_remote_access_switch))
+
 
 class ConnectBoxVentilationSwitch(ConnectBoxGatewayEntity, SwitchEntity):
     """Expose global standby as an on/off control."""
@@ -347,6 +364,42 @@ class ConnectBoxAbsencePlannerSwitch(ConnectBoxGatewayEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Switch the planner off."""
         await self.coordinator.async_set_absence(False)
+
+
+class ConnectBoxRemoteAccessSwitch(ConnectBoxGatewayEntity, SwitchEntity):
+    """The app's access over the internet (Zugriff über Internet).
+
+    Switched off, the official app only reaches the ConnectBox in the local
+    network. This integration always connects locally.
+    """
+
+    _attr_translation_key = "remote_access"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:cloud-lock"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_remote_access_switch"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return whether access over the internet is enabled."""
+        snapshot = self.coordinator.data
+        return snapshot.remote_access if snapshot is not None else None
+
+    @property
+    def available(self) -> bool:
+        """Only allow a change while the gateway reports the setting."""
+        return super().available and self.is_on is not None
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable access over the internet."""
+        await self.coordinator.async_set_remote_access(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable access over the internet."""
+        await self.coordinator.async_set_remote_access(False)
 
 
 class ConnectBoxBoostSwitch(ConnectBoxDeviceEntity, SwitchEntity):

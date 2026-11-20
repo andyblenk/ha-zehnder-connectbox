@@ -803,7 +803,11 @@ if __name__ == "__main__":
 class DiagnosticsTests(unittest.TestCase):
     def test_diagnostics_show_settings_without_identities(self):
         data = snapshot(rooms_message(role=1))
-        coordinator = SimpleNamespace(data=data, last_update_success=True)
+        coordinator = SimpleNamespace(
+            data=data,
+            last_update_success=True,
+            client=SimpleNamespace(unsupported_gateway_reads={"users"}),
+        )
         entry = SimpleNamespace(
             runtime_data=coordinator,
             version=1,
@@ -813,6 +817,7 @@ class DiagnosticsTests(unittest.TestCase):
             diagnostics.async_get_config_entry_diagnostics(None, entry)
         )
         self.assertNotIn("capture", result)
+        self.assertEqual(result["gateway"]["unsupported_gateway_reads"], ["users"])
         device = result["attached_devices"][0]
         self.assertEqual(device["summer_ventilation_role"], "supply")
         self.assertEqual(device["level_one_runtime"], 60)

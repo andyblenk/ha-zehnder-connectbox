@@ -62,10 +62,11 @@ with sanitized integration diagnostics.
 - One Home Assistant gateway device for each ConnectBox
 - Separate Home Assistant devices for supported connected ventilation units
 - Automatic detection of supported units linked later in the official app
-- Native fan, switch, select, number, date-and-time, sensor, binary-sensor,
-  and button entities
+- Native fan, switch, select, number, date-and-time, text, sensor,
+  binary-sensor, and button entities
 - The functions of the official app's pages: schedules, absence planner,
-  boost, summer ventilation and unit settings
+  boost, summer ventilation, room and unit settings, history and system
+  settings
 - Local polling, automatic reconnect, and privacy-preserving diagnostics
 - Multiple ConnectBoxes as separate Home Assistant config entries
 
@@ -112,7 +113,7 @@ summer ventilation role sensor.
 The ConnectBox firmware version is shown in its Home Assistant device
 information when reported by the gateway.
 
-#### Schedules and absence planner
+#### Schedules, absence planner and system settings
 
 These entities follow the pages of the official app. They appear once the
 ConnectBox reports the matching data.
@@ -125,6 +126,14 @@ ConnectBox reports the matching data.
 | Absence planner | Switch | Saves or switches off the app's absence planner; the system runs in frost protection during the period |
 | Absence start / Absence end | Date and time | Period of the absence planner; while the planner is off, the period is kept until it is switched on |
 | Absence running | Binary sensor | On while the absence period runs |
+| History | Sensor | Latest entry of the app's history; all returned entries are attributes |
+| Radio duty cycle | Diagnostic sensor | Duty cycle the ConnectBox logs in its history, as logged |
+| System name | Configuration text | Name of the system, as on the app's system name and language page |
+| System language | Configuration select | German, English, French or Dutch |
+| Internet access | Configuration switch | Whether the official app may reach the ConnectBox over the internet; this integration always connects locally |
+| Users | Diagnostic sensor | Number of paired apps; their names and last connection are attributes |
+| Country, Network connection, System version | Diagnostic sensors | Values of the app's settings and service pages |
+| Firmware update | Diagnostic sensor | Whether the units are up to date or an update runs, with its progress |
 
 The services `zehnder_connectbox.save_day_plan`, `remove_day_plan`,
 `save_week_plan` and `remove_week_plan` add, change and remove schedules.
@@ -146,9 +155,9 @@ data:
     - {start: "07:00", function: boost, duration_minutes: 15, room: Office}
 ```
 
-Wi-Fi setup, pairing and removing apps or units, rooms, system settings, the
-history, push notifications, the firmware update and the service partner access
-stay in the official app.
+Wi-Fi setup, pairing and removing apps or units, adding rooms, push
+notifications, the firmware update and the service partner access stay in the
+official app.
 
 ### Supported ventilation unit
 
@@ -182,6 +191,7 @@ stay in the official app.
 | Level 1 runtime per hour | Configuration number | Minutes per hour the unit runs in level 1 (15, 30, 45 or 60), as on the unit's page in the app |
 | Bath function, Automatic operation sensors | Diagnostic sensors | Settings the app shows read-only on the unit's page |
 | Error log | Diagnostic sensor | The unit's last error codes with their operating hours |
+| Room name, Room type | Configuration text and select | Name and type of the unit's room, as on the app's room page |
 | Reset filter timer | Configuration button | Resets the filter counter after filter maintenance; currently verified for ComfoSpot 50 |
 
 The ventilation fan entity provides Home Assistant's standard power and speed

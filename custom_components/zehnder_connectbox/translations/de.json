@@ -219,6 +219,31 @@
       },
       "active_week_plan": {
         "name": "Aktiver Wochenplan"
+      },
+      "system_language": {
+        "name": "System-Sprache",
+        "state": {
+          "german": "Deutsch",
+          "english": "Englisch",
+          "french": "Französisch",
+          "dutch": "Niederländisch",
+          "spanish": "Spanisch",
+          "portuguese": "Portugiesisch",
+          "italian": "Italienisch"
+        }
+      },
+      "room_type": {
+        "name": "Raumtyp",
+        "state": {
+          "living_room": "Wohnzimmer",
+          "kitchen": "Küche",
+          "bathroom": "Badezimmer",
+          "toilet": "WC",
+          "bedroom": "Schlafzimmer",
+          "dining_room": "Esszimmer",
+          "office": "Büro",
+          "other": "Sonstiger Raum"
+        }
       }
     },
     "sensor": {
@@ -347,6 +372,50 @@
       },
       "week_plan": {
         "name": "Wochenplan"
+      },
+      "history": {
+        "name": "Verlauf"
+      },
+      "radio_duty_cycle": {
+        "name": "Funk-Auslastung"
+      },
+      "users": {
+        "name": "Benutzer",
+        "unit_of_measurement": "Benutzer"
+      },
+      "country": {
+        "name": "Land",
+        "state": {
+          "united_kingdom": "Großbritannien",
+          "germany": "Deutschland",
+          "france": "Frankreich",
+          "netherlands": "Niederlande",
+          "spain": "Spanien",
+          "portugal": "Portugal",
+          "italy": "Italien",
+          "switzerland": "Schweiz",
+          "austria": "Österreich",
+          "belgium": "Belgien"
+        }
+      },
+      "network_connection": {
+        "name": "Netzwerkverbindung",
+        "state": {
+          "lan": "LAN",
+          "wifi_access_point": "WLAN-Zugangspunkt",
+          "wifi": "WLAN"
+        }
+      },
+      "system_version": {
+        "name": "Systemversion"
+      },
+      "firmware_update": {
+        "name": "Firmware-Update",
+        "state": {
+          "up_to_date": "Aktuell",
+          "updating": "Wird aktualisiert",
+          "queued": "In Warteschlange"
+        }
       }
     },
     "switch": {
@@ -364,6 +433,9 @@
       },
       "absence_planner": {
         "name": "Abwesenheitsplaner"
+      },
+      "remote_access": {
+        "name": "Zugriff über Internet"
       },
       "presence": {
         "name": "Daheim",
@@ -397,6 +469,14 @@
       },
       "absence_end": {
         "name": "Abwesenheit Ende"
+      }
+    },
+    "text": {
+      "site_name": {
+        "name": "Systemname"
+      },
+      "room_name": {
+        "name": "Raumname"
       }
     }
   },
@@ -556,6 +636,15 @@
     },
     "not_loaded": {
       "message": "Die ConnectBox ist nicht geladen."
+    },
+    "site_locked": {
+      "message": "Eine andere App bearbeitet gerade die Systemeinstellungen. Versuche es erneut, sobald sie dort gespeichert sind."
+    },
+    "invalid_name": {
+      "message": "Gib einen Namen mit 1 bis {max_bytes} Bytes ein."
+    },
+    "language_not_selectable": {
+      "message": "Wähle Deutsch, Englisch, Französisch oder Niederländisch, wie in der App."
     },
     "presence_needs_schedule": {
       "message": "Daheim und Abwesend lassen sich so nur umschalten, während der Zeitplan läuft (Automatikbetrieb)."

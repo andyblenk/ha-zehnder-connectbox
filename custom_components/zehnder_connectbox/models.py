@@ -57,6 +57,8 @@ class VersionInfo:
     property_list_version: int | None
     zone_state_list_version: int | None
     connectbox_version: int | None
+    serial_number: str | None = None
+    """Serial number of the ConnectBox, as on the app's service page."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +122,66 @@ class Schedules:
     def week_plan(self, plan_id: int | None) -> WeekPlan | None:
         """Return a weekly schedule by ID."""
         return next((plan for plan in self.week_plans if plan.plan_id == plan_id), None)
+
+
+@dataclass(frozen=True, slots=True)
+class ActionLogEntry:
+    """One entry of the app's history (Verlauf).
+
+    The gateway logs every change with the nickname of the paired client
+    (such as "Home Assistant"), the time, a message key such as
+    CHANGED_DAYPLAN and its parameters, such as the plan's name. It also logs
+    the radio duty cycle with the nickname "ComfoRF DUTY CYCLE".
+    """
+
+    nickname: str | None
+    timestamp: int | None
+    """Time of the entry as Unix time.
+
+    The gateway logs its local wall-clock time (an entry made at 19:19 CET
+    read 19:19 as if it were UTC); the client subtracts the gateway's offset.
+    """
+    message: str | None
+    params: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class SiteInfo:
+    """The app's system name and language page (Systemname und Sprache).
+
+    Language and location are the numbers of the app's enumerations (German
+    is 2, Germany is 2). The app offers no time zone; the gateway reported an
+    index and a name such as Europe/Berlin next to the country.
+    """
+
+    name: str | None
+    language: int | None
+    location: int | None
+    timezone: int | None
+    timezone_name: str | None
+    network_mode: int | None
+    raw: bytes = field(default=b"", repr=False, compare=False)
+
+
+@dataclass(frozen=True, slots=True)
+class PairedApp:
+    """A paired client, as on the app's user page (Benutzer)."""
+
+    app_id: int | None
+    nickname: str | None
+    last_active: int | None
+    """Last connection as Unix time (see ActionLogEntry.timestamp)."""
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateProgress:
+    """Progress of a firmware update of the units, as on the app's update page."""
+
+    remaining_minutes: int | None
+    updating_device_id: int | None
+    progress: int | None
+    up_to_date_device_ids: tuple[int, ...]
+    queued_device_ids: tuple[int, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,6 +362,11 @@ class GatewaySnapshot:
     rooms: tuple[Room, ...]
     summer_ventilation_settings: SummerVentilationSettings | None = None
     schedules: Schedules | None = None
+    action_log: tuple[ActionLogEntry, ...] | None = None
+    remote_access: bool | None = None
+    site: SiteInfo | None = None
+    paired_apps: tuple[PairedApp, ...] | None = None
+    update_progress: UpdateProgress | None = None
 
     def find_device(self, device_id: int) -> tuple[Room, AttachedDevice] | None:
         """Find a device together with its containing room."""

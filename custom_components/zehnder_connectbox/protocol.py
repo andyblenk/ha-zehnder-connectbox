@@ -9,15 +9,19 @@ from uuid import UUID
 
 from .const import SENSOR_MODE_LEVEL, VENTILATION_LEVELS
 from .models import (
+    ActionLogEntry,
     AttachedDevice,
     DayPlan,
+    PairedApp,
     PropertyKey,
     PropertyValue,
     Room,
     RunState,
     ScheduledFunction,
     Schedules,
+    SiteInfo,
     SummerVentilationSettings,
+    UpdateProgress,
     VentilationValue,
     VersionInfo,
     WeekPlan,
@@ -29,6 +33,7 @@ from .protobuf import (
     bytes_value,
     bytes_values,
     decode_fields,
+    decode_packed_uints,
     encode_bytes,
     encode_string,
     encode_uint,
@@ -71,7 +76,9 @@ class OperationType(IntEnum):
     VERSION_REQUEST = 18
     VERSION_CONFIRM = 68
     REMOTE_ACCESS_REQUEST = 140
+    SET_REMOTE_ACCESS_REQUEST = 141
     REMOTE_ACCESS_CONFIRM = 142
+    SET_REMOTE_ACCESS_CONFIRM = 143
     # Schedule operations, numbered as in the official app's message table
     # (GetSchedule, LockDayplan, SetDayplan, ...). The gateway sends the
     # notification with all schedules whenever a client changed one.
@@ -110,8 +117,27 @@ class OperationType(IntEnum):
     SET_RUN_STATE_CONFIRM = 244
     SET_ACTIVE_WEEK_PLAN_REQUEST = 245
     SET_ACTIVE_WEEK_PLAN_CONFIRM = 246
+    # The app's system name and language page, changed under the site's lock.
+    LOCK_SITE_REQUEST = 250
+    LOCK_SITE_CONFIRM = 251
+    RELEASE_SITE_REQUEST = 252
+    RELEASE_SITE_CONFIRM = 253
+    SITE_INFO_REQUEST = 254
+    SITE_INFO_CONFIRM = 255
+    SET_SITE_INFO_REQUEST = 256
+    SET_SITE_INFO_CONFIRM = 257
+    SITE_INFO_NOTIFICATION = 258
+    TIME_REQUEST = 260
+    TIME_CONFIRM = 261
+    ACTION_LOG_REQUEST = 290
+    ACTION_LOG_CONFIRM = 291
+    ACTION_LOG_NOTIFICATION = 292
+    PAIRED_APPS_REQUEST = 299
+    PAIRED_APPS_CONFIRM = 300
     SET_STANDBY_TIME_RANGE_REQUEST = 330
     SET_STANDBY_TIME_RANGE_CONFIRM = 331
+    UPDATE_PROGRESS_REQUEST = 340
+    UPDATE_PROGRESS_CONFIRM = 341
     SUMMER_VENTILATION_REQUEST = 354
     SUMMER_VENTILATION_CONFIRM = 355
     SET_SUMMER_VENTILATION_REQUEST = 356
@@ -242,9 +268,11 @@ def decode_pairing(message: bytes) -> tuple[int, UUID | None]:
 
 
 def decode_version(message: bytes) -> VersionInfo:
-    """Decode the non-identifying gateway version values."""
+    """Decode the gateway's version values and its serial number."""
     fields = decode_fields(message)
+    serial = bytes_value(fields, 2)
     return VersionInfo(
+        serial_number=serial.decode(errors="replace") if serial else None,
         system_version=uint_value(fields, 1),
         comfonet_version=uint_value(fields, 3),
         property_list_version=uint_value(fields, 4),
@@ -454,6 +482,155 @@ def encode_standby_time_range(enabled: bool, start: int, end: int) -> bytes:
             encode_uint(2, _check_uint(start, "start")),
             encode_uint(3, _check_uint(end, "end")),
         )
+    )
+
+
+def decode_action_log(message: bytes) -> tuple[ActionLogEntry, ...]:
+    """Decode the gateway's history, newest entry first as reported."""
+    entries: list[ActionLogEntry] = []
+    for value in bytes_values(decode_fields(message), 1):
+        fields = decode_fields(value)
+        nickname = bytes_value(fields, 1)
+        text = bytes_value(fields, 3)
+        entries.append(
+            ActionLogEntry(
+                nickname=nickname.decode(errors="replace") if nickname else None,
+                timestamp=uint_value(fields, 2),
+                message=text.decode(errors="replace") if text else None,
+                params=tuple(
+                    item.decode(errors="replace")
+                    for item in bytes_values(fields, 4)
+                    if item
+                ),
+            )
+        )
+    return tuple(entries)
+
+
+def decode_local_time_offset(message: bytes) -> int | None:
+    """Decode the gateway's offset of local time from UTC, in seconds.
+
+    The time confirmation carries utcTime and localTime; the local time was
+    reported rounded to the minute, so the offset is rounded to 15 minutes.
+    """
+    fields = decode_fields(message)
+    utc = uint_value(fields, 1)
+    local = uint_value(fields, 2)
+    if utc is None or local is None:
+        return None
+    return round((local - utc) / 900) * 900
+
+
+def decode_remote_access(message: bytes) -> bool | None:
+    """Decode whether access over the internet is enabled.
+
+    The app's enumeration has AccessEnabled = 0 and AccessDisabled = 1; the
+    gateway reported 0 while the app showed the access switched on.
+    """
+    value = uint_value(decode_fields(message), 1)
+    if value is None:
+        return None
+    return value == 0
+
+
+def encode_remote_access(enabled: bool) -> bytes:
+    """Build the update of the access over the internet (0 = enabled)."""
+    if not isinstance(enabled, bool):
+        raise TypeError("enabled must be a boolean")
+    return encode_uint(1, 0 if enabled else 1)
+
+
+SITE_NAME_MAX_BYTES = 32
+# Fields of the app's site update: name, language, location, time zone index
+# and name, and the heating setting of other product lines where reported.
+SITE_UPDATE_FIELDS = (1, 2, 3, 4, 5, 20)
+
+
+def _text(value: bytes | None) -> str | None:
+    return value.decode(errors="replace") if value else None
+
+
+def decode_site_info(message: bytes) -> SiteInfo:
+    """Decode the system name, language, country and network connection."""
+    fields = decode_fields(message)
+    return SiteInfo(
+        name=_text(bytes_value(fields, 1)),
+        language=uint_value(fields, 2),
+        location=uint_value(fields, 3),
+        timezone=uint_value(fields, 4),
+        timezone_name=_text(bytes_value(fields, 5)),
+        network_mode=uint_value(fields, 7),
+        raw=message,
+    )
+
+
+def encode_site_info(
+    site: SiteInfo, *, name: str | None = None, language: int | None = None
+) -> bytes:
+    """Build a site update that keeps everything but the given values.
+
+    The update is the site as read, without the values the gateway only
+    reports (configured, network connection).
+    """
+    if not site.raw:
+        raise ProtocolError("site information does not contain its gateway data")
+    if name is not None:
+        raw_name = name.encode()
+        if not raw_name or len(raw_name) > SITE_NAME_MAX_BYTES:
+            raise ValueError(f"the name must have 1 to {SITE_NAME_MAX_BYTES} bytes")
+    if language is not None:
+        _check_uint(language, "language")
+    message = bytearray()
+    seen: set[int] = set()
+    for item in decode_fields(site.raw):
+        if item.number not in SITE_UPDATE_FIELDS or item.number in seen:
+            continue
+        seen.add(item.number)
+        if item.number == 1 and name is not None:
+            message.extend(encode_bytes(1, name.encode()))
+        elif item.number == 2 and language is not None:
+            message.extend(encode_uint(2, language))
+        else:
+            message.extend(_encode_field(item))
+    if name is not None and 1 not in seen:
+        message[0:0] = encode_bytes(1, name.encode())
+    if language is not None and 2 not in seen:
+        raise ProtocolError("the gateway does not report a language")
+    return bytes(message)
+
+
+def _repeated_uints(fields: tuple[Field, ...], number: int) -> tuple[int, ...]:
+    """Return a repeated number field, written one by one or packed."""
+    values = list(uint_values(fields, number))
+    for packed in bytes_values(fields, number):
+        values.extend(decode_packed_uints(packed))
+    return tuple(values)
+
+
+def decode_paired_apps(message: bytes) -> tuple[PairedApp, ...]:
+    """Decode the paired clients of the app's user page."""
+    apps: list[PairedApp] = []
+    for value in bytes_values(decode_fields(message), 1):
+        fields = decode_fields(value)
+        apps.append(
+            PairedApp(
+                app_id=uint_value(fields, 1),
+                nickname=_text(bytes_value(fields, 2)),
+                last_active=uint_value(fields, 3),
+            )
+        )
+    return tuple(apps)
+
+
+def decode_update_progress(message: bytes) -> UpdateProgress:
+    """Decode the progress of a firmware update of the units."""
+    fields = decode_fields(message)
+    return UpdateProgress(
+        remaining_minutes=uint_value(fields, 1),
+        updating_device_id=uint_value(fields, 2),
+        progress=uint_value(fields, 3),
+        up_to_date_device_ids=_repeated_uints(fields, 4),
+        queued_device_ids=_repeated_uints(fields, 5),
     )
 
 
@@ -686,14 +863,51 @@ def encode_room_number_update(room: Room, values: dict[int, int]) -> bytes:
             raise ValueError("this room field cannot be changed as a number")
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
             raise ValueError("room field values must be non-negative integers")
+    return _encode_room_write(room, values)
+
+
+ROOM_NAME_MAX_BYTES = 32
+ROOM_NAME = 2
+ROOM_TYPE = 3
+
+
+def encode_room_settings(
+    room: Room, *, name: str | None = None, room_type: int | None = None
+) -> bytes:
+    """Write a room back with its name or type changed, as the app's room page.
+
+    Everything else is sent as read, like a change of the boost duration.
+    """
+    if name is None and room_type is None:
+        raise ValueError("no room setting to change")
+    raw_name: bytes | None = None
+    if name is not None:
+        raw_name = name.encode()
+        if not raw_name or len(raw_name) > ROOM_NAME_MAX_BYTES:
+            raise ValueError(f"the name must have 1 to {ROOM_NAME_MAX_BYTES} bytes")
+    numbers: dict[int, int] = {}
+    if room_type is not None:
+        numbers[ROOM_TYPE] = _check_uint(room_type, "room type")
+    return _encode_room_write(room, numbers, name=raw_name)
+
+
+def _encode_room_write(
+    room: Room, values: dict[int, int], *, name: bytes | None = None
+) -> bytes:
+    """Re-encode a room as read with number fields or its name replaced."""
     if not room.raw:
         raise ProtocolError("room does not contain its original gateway data")
-
     pending = dict(sorted(values.items()))
+    name_written = name is None
     room_value = bytearray()
     for field in decode_fields(room.raw):
         for number in [item for item in pending if item < field.number]:
             room_value.extend(encode_uint(number, pending.pop(number)))
+        if field.number == ROOM_NAME and name is not None:
+            if not name_written:
+                room_value.extend(encode_bytes(ROOM_NAME, name))
+                name_written = True
+            continue
         if field.number in pending:
             if field.wire_type is not WireType.VARINT:
                 raise ProtocolError("the room field is not a number")
@@ -709,6 +923,8 @@ def encode_room_number_update(room: Room, values: dict[int, int]) -> bytes:
             room_value.extend(encode_bytes(8, _encode_fields(writable_fields)))
             continue
         room_value.extend(_encode_field(field))
+    if not name_written:
+        raise ProtocolError("the room does not report a name")
     for number, value in pending.items():
         room_value.extend(encode_uint(number, value))
     return encode_bytes(1, bytes(room_value))

@@ -72,22 +72,36 @@ async def async_setup_entry(
     )
     known: set[tuple[int, int]] = set()
     known_roles: set[int] = set()
+    known_room_types: set[int] = set()
     week_plan_added = False
+    language_added = False
 
     @callback
     def add_new_entities() -> None:
-        nonlocal week_plan_added
+        nonlocal week_plan_added, language_added
         if coordinator.data is None:
             return
         new_entities: list[SelectEntity] = []
         if not week_plan_added and coordinator.data.schedules is not None:
             new_entities.append(ConnectBoxActiveWeekPlan(coordinator))
             week_plan_added = True
+        site = coordinator.data.site
+        if not language_added and site is not None and site.language is not None:
+            new_entities.append(ConnectBoxSystemLanguage(coordinator))
+            language_added = True
         for room in coordinator.data.rooms:
             modes = {value.temperature_mode for value in room.ventilation}
             for device in room.devices:
                 if not is_supported(device):
                     continue
+                if (
+                    device.device_id not in known_room_types
+                    and room.room_type is not None
+                ):
+                    new_entities.append(
+                        ConnectBoxRoomType(coordinator, device.device_id)
+                    )
+                    known_room_types.add(device.device_id)
                 if (
                     device.device_id not in known_roles
                     and summer_ventilation_role_key(device) is not None
@@ -350,3 +364,112 @@ class ConnectBoxActiveWeekPlan(ConnectBoxGatewayEntity, SelectEntity):
         if option == self.current_option:
             return
         await self.coordinator.async_set_active_week_plan(plan_id)
+
+
+# Languages of the app's enumeration. The app's system name and language
+# page offers the first four; the others are shown when the gateway reports
+# them.
+LANGUAGES = {
+    2: "german",
+    1: "english",
+    3: "french",
+    4: "dutch",
+    5: "spanish",
+    6: "portuguese",
+    7: "italian",
+}
+SELECTABLE_LANGUAGES = ("german", "english", "french", "dutch")
+LANGUAGE_VALUES = {option: value for value, option in LANGUAGES.items()}
+
+
+class ConnectBoxSystemLanguage(ConnectBoxGatewayEntity, SelectEntity):
+    """System language, as on the app's system name and language page."""
+
+    _attr_translation_key = "system_language"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:translate"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_system_language"
+
+    @property
+    def options(self) -> list[str]:
+        """Offer the app's languages and the reported one."""
+        options = list(SELECTABLE_LANGUAGES)
+        current = self.current_option
+        if current is not None and current not in options:
+            options.append(current)
+        return options
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the reported language."""
+        snapshot = self.coordinator.data
+        site = snapshot.site if snapshot is not None else None
+        return LANGUAGES.get(site.language) if site is not None else None
+
+    @property
+    def available(self) -> bool:
+        """Only allow a change while the gateway reports a known language."""
+        return super().available and self.current_option is not None
+
+    async def async_select_option(self, option: str) -> None:
+        """Write the language and read it back."""
+        if option == self.current_option:
+            return
+        if option not in SELECTABLE_LANGUAGES:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="language_not_selectable"
+            )
+        await self.coordinator.async_set_site_info(language=LANGUAGE_VALUES[option])
+
+
+# Room types of the app's enumeration, as on its room page. Type 1 (device
+# pool) is not a room.
+ROOM_TYPES = {
+    2: "living_room",
+    3: "kitchen",
+    4: "bathroom",
+    5: "toilet",
+    6: "bedroom",
+    7: "dining_room",
+    8: "office",
+    9: "other",
+}
+ROOM_TYPE_VALUES = {option: value for value, option in ROOM_TYPES.items()}
+
+
+class ConnectBoxRoomType(ConnectBoxDeviceEntity, SelectEntity):
+    """Type of the unit's room, as on the app's room page."""
+
+    _attr_translation_key = "room_type"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:floor-plan"
+    _attr_options: ClassVar[list[str]] = list(ROOM_TYPE_VALUES)
+
+    def __init__(self, coordinator, device_id: int) -> None:
+        super().__init__(coordinator, device_id)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_{device_id}_room_type"
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the reported room type."""
+        data = self.device_data
+        return ROOM_TYPES.get(data[0].room_type) if data is not None else None
+
+    @property
+    def available(self) -> bool:
+        """Only allow a change while the room reports a known type."""
+        return super().available and self.current_option is not None
+
+    async def async_select_option(self, option: str) -> None:
+        """Write the room type and read it back."""
+        data = self.device_data
+        if data is None or option == self.current_option:
+            return
+        await self.coordinator.async_set_room_settings(
+            data[0].room_id, room_type=ROOM_TYPE_VALUES[option]
+        )

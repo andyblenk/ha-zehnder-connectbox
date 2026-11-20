@@ -440,6 +440,33 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         )
         self._accept_command_snapshot(snapshot)
 
+    async def async_set_site_info(
+        self, *, name: str | None = None, language: int | None = None
+    ) -> None:
+        """Change the system name or language and confirm it."""
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_site_info, name=name, language=language)
+        )
+        self._accept_command_snapshot(snapshot)
+
+    async def async_set_remote_access(self, enabled: bool) -> None:
+        """Switch the access over the internet and confirm it."""
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_remote_access, enabled)
+        )
+        self._accept_command_snapshot(snapshot)
+
+    async def async_set_room_settings(
+        self, room_id: int, *, name: str | None = None, room_type: int | None = None
+    ) -> None:
+        """Change a room's name or type and confirm it."""
+        snapshot = await self._async_execute_command(
+            partial(
+                self.client.set_room_settings, room_id, name=name, room_type=room_type
+            )
+        )
+        self._accept_command_snapshot(snapshot)
+
     async def async_close(self) -> None:
         """Close the client outside Home Assistant's event loop."""
         async with self._io_lock:
@@ -503,6 +530,7 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
             model="ConnectBox CU-RF-ZMA",
             name=self.entry.title or DEFAULT_NAME,
             sw_version=format_version(snapshot.version.connectbox_version),
+            serial_number=snapshot.version.serial_number,
         )
         for room in snapshot.rooms:
             for device in room.devices:

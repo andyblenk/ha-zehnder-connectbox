@@ -219,6 +219,31 @@
       },
       "active_week_plan": {
         "name": "Active weekly schedule"
+      },
+      "system_language": {
+        "name": "System language",
+        "state": {
+          "german": "German",
+          "english": "English",
+          "french": "French",
+          "dutch": "Dutch",
+          "spanish": "Spanish",
+          "portuguese": "Portuguese",
+          "italian": "Italian"
+        }
+      },
+      "room_type": {
+        "name": "Room type",
+        "state": {
+          "living_room": "Living room",
+          "kitchen": "Kitchen",
+          "bathroom": "Bathroom",
+          "toilet": "Toilet",
+          "bedroom": "Bedroom",
+          "dining_room": "Dining room",
+          "office": "Office",
+          "other": "Other"
+        }
       }
     },
     "sensor": {
@@ -347,6 +372,50 @@
       },
       "week_plan": {
         "name": "Weekly schedule"
+      },
+      "history": {
+        "name": "History"
+      },
+      "radio_duty_cycle": {
+        "name": "Radio duty cycle"
+      },
+      "users": {
+        "name": "Users",
+        "unit_of_measurement": "users"
+      },
+      "country": {
+        "name": "Country",
+        "state": {
+          "united_kingdom": "United Kingdom",
+          "germany": "Germany",
+          "france": "France",
+          "netherlands": "Netherlands",
+          "spain": "Spain",
+          "portugal": "Portugal",
+          "italy": "Italy",
+          "switzerland": "Switzerland",
+          "austria": "Austria",
+          "belgium": "Belgium"
+        }
+      },
+      "network_connection": {
+        "name": "Network connection",
+        "state": {
+          "lan": "LAN",
+          "wifi_access_point": "Wi-Fi access point",
+          "wifi": "Wi-Fi"
+        }
+      },
+      "system_version": {
+        "name": "System version"
+      },
+      "firmware_update": {
+        "name": "Firmware update",
+        "state": {
+          "up_to_date": "Up to date",
+          "updating": "Updating",
+          "queued": "Queued"
+        }
       }
     },
     "switch": {
@@ -364,6 +433,9 @@
       },
       "absence_planner": {
         "name": "Absence planner"
+      },
+      "remote_access": {
+        "name": "Internet access"
       },
       "presence": {
         "name": "At home",
@@ -397,6 +469,14 @@
       },
       "absence_end": {
         "name": "Absence end"
+      }
+    },
+    "text": {
+      "site_name": {
+        "name": "System name"
+      },
+      "room_name": {
+        "name": "Room name"
       }
     }
   },
@@ -556,6 +636,15 @@
     },
     "not_loaded": {
       "message": "The ConnectBox is not loaded."
+    },
+    "site_locked": {
+      "message": "Another app is editing the system settings. Try again once they are saved there."
+    },
+    "invalid_name": {
+      "message": "Enter a name of 1 to {max_bytes} bytes."
+    },
+    "language_not_selectable": {
+      "message": "Choose German, English, French or Dutch, as in the app."
     },
     "presence_needs_schedule": {
       "message": "At home and away can only be switched this way while the schedule runs (automatic mode)."

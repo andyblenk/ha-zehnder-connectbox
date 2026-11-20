@@ -77,6 +77,43 @@ async def async_get_config_entry_diagnostics(
             "absence_planned": snapshot.run_state.absence_planned,
             "absence_start": snapshot.run_state.standby_start,
             "absence_end": snapshot.run_state.standby_end,
+            "remote_access": snapshot.remote_access,
+            "site": (
+                {
+                    "language": snapshot.site.language,
+                    "location": snapshot.site.location,
+                    "timezone": snapshot.site.timezone,
+                    "network_mode": snapshot.site.network_mode,
+                }
+                if snapshot.site is not None
+                else None
+            ),
+            "paired_app_count": (
+                len(snapshot.paired_apps) if snapshot.paired_apps is not None else None
+            ),
+            "update_progress": (
+                {
+                    "remaining_minutes": snapshot.update_progress.remaining_minutes,
+                    "updating_device_id": snapshot.update_progress.updating_device_id,
+                    "progress": snapshot.update_progress.progress,
+                    "up_to_date_devices": len(
+                        snapshot.update_progress.up_to_date_device_ids
+                    ),
+                    "queued_devices": len(snapshot.update_progress.queued_device_ids),
+                }
+                if snapshot.update_progress is not None
+                else None
+            ),
+            "unsupported_gateway_reads": sorted(
+                getattr(
+                    getattr(coordinator, "client", None),
+                    "unsupported_gateway_reads",
+                    (),
+                )
+            ),
+            "history_entries": (
+                len(snapshot.action_log) if snapshot.action_log is not None else None
+            ),
             "summer_ventilation_active": snapshot.run_state.summer_ventilation,
             "summer_ventilation_enabled": (
                 snapshot.summer_ventilation_settings.enabled

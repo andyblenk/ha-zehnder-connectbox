@@ -16,9 +16,11 @@ from .const import (
 )
 from .errors import CommandValidationError
 from .models import (
+    ActionLogEntry,
     AttachedDevice,
     DayPlan,
     GatewaySnapshot,
+    PairedApp,
     PairingData,
     PropertyKey,
     PropertyValue,
@@ -27,8 +29,10 @@ from .models import (
     RunState,
     ScheduledFunction,
     Schedules,
+    SiteInfo,
     SummerVentilationSettings,
     TemperatureMode,
+    UpdateProgress,
     VersionInfo,
     WeekPlan,
 )
@@ -58,12 +62,18 @@ from .protocol import (
     OperationType,
     PropertySequenceCommand,
     ProtocolError,
+    decode_action_log,
     decode_day_plan_confirm,
+    decode_local_time_offset,
+    decode_paired_apps,
     decode_pairing,
+    decode_remote_access,
     decode_rooms,
     decode_run_state,
     decode_schedules,
+    decode_site_info,
     decode_summer_ventilation_settings,
+    decode_update_progress,
     decode_version,
     decode_week_plan_confirm,
     encode_active_week_plan,
@@ -73,10 +83,13 @@ from .protocol import (
     encode_plan_id,
     encode_property_request,
     encode_property_update,
+    encode_remote_access,
     encode_room_boost,
     encode_room_level,
     encode_room_number_update,
+    encode_room_settings,
     encode_run_state,
+    encode_site_info,
     encode_standby_time_range,
     encode_summer_ventilation_settings,
     encode_week_plan,
@@ -97,6 +110,29 @@ BOOST_END_TOLERANCE = 300
 SCHEDULES_REFRESH_INTERVAL = 15 * 60.0
 SCHEDULES_REQUEST_TIMEOUT = 4.0
 SCHEDULES_RETRY_INTERVAL = 60.0
+# The history and the internet-access setting are stored on the gateway, so
+# reading them does not use the radio link. The history is read again after
+# the gateway announced a new entry and otherwise every few minutes.
+ACTION_LOG_REFRESH_INTERVAL = 5 * 60.0
+ACTION_LOG_RETRY_INTERVAL = 60.0
+# Read together, in this order: the time first, because the history and the
+# users report the gateway's local time.
+GATEWAY_READS: tuple[tuple[str, OperationType, OperationType], ...] = (
+    ("time", OperationType.TIME_REQUEST, OperationType.TIME_CONFIRM),
+    ("history", OperationType.ACTION_LOG_REQUEST, OperationType.ACTION_LOG_CONFIRM),
+    (
+        "remote_access",
+        OperationType.REMOTE_ACCESS_REQUEST,
+        OperationType.REMOTE_ACCESS_CONFIRM,
+    ),
+    ("site", OperationType.SITE_INFO_REQUEST, OperationType.SITE_INFO_CONFIRM),
+    ("users", OperationType.PAIRED_APPS_REQUEST, OperationType.PAIRED_APPS_CONFIRM),
+    (
+        "update",
+        OperationType.UPDATE_PROGRESS_REQUEST,
+        OperationType.UPDATE_PROGRESS_CONFIRM,
+    ),
+)
 # Run-state field 3 of the app's enumeration: the situation was changed by
 # a user, or presence was switched to at home, while the schedule runs.
 PRESENCE_LOCATION_HOME = 1
@@ -168,6 +204,16 @@ class ConnectBoxClient:
         self._schedules_read: float | None = None
         self._schedules_unsupported = False
         self._schedules_retry_after = 0.0
+        self._action_log: tuple[ActionLogEntry, ...] | None = None
+        self._remote_access: bool | None = None
+        self._site: SiteInfo | None = None
+        self._paired_apps: tuple[PairedApp, ...] | None = None
+        self._update_progress: UpdateProgress | None = None
+        self._action_log_read: float | None = None
+        self._action_log_retry_after = 0.0
+        self._local_time_offset: int | None = None
+        # Gateway reads (see GATEWAY_READS) the gateway refused.
+        self.unsupported_gateway_reads: set[str] = set()
 
     @classmethod
     def pair(
@@ -272,8 +318,19 @@ class ConnectBoxClient:
                 if refresh_schedules
                 else self._schedules
             )
+            if refresh_schedules:
+                self._read_action_log()
             return GatewaySnapshot(
-                version, run_state, rooms, summer_settings, schedules
+                version,
+                run_state,
+                rooms,
+                summer_settings,
+                schedules,
+                action_log=self._action_log,
+                remote_access=self._remote_access,
+                site=self._site,
+                paired_apps=self._paired_apps,
+                update_progress=self._update_progress,
             )
         except (ProtocolError, TransportError):
             self.close()
@@ -1077,6 +1134,121 @@ class ConnectBoxClient:
             self.close()
             raise
 
+    def set_site_info(
+        self, *, name: str | None = None, language: int | None = None
+    ) -> GatewaySnapshot:
+        """Change the system name or language, as the app's settings page.
+
+        The site is read, changed under its lock like in the app, and read
+        back. Country and time zone are sent back as read.
+        """
+        try:
+            session = self._connected_session()
+            try:
+                session.request(
+                    OperationType.LOCK_SITE_REQUEST, OperationType.LOCK_SITE_CONFIRM
+                )
+            except GatewayResponseError as err:
+                if err.result == RESULT_LOCKED:
+                    raise CommandValidationError("site_locked") from err
+                raise
+            try:
+                site = decode_site_info(
+                    session.request(
+                        OperationType.SITE_INFO_REQUEST,
+                        OperationType.SITE_INFO_CONFIRM,
+                    ).body
+                )
+                session.request(
+                    OperationType.SET_SITE_INFO_REQUEST,
+                    OperationType.SET_SITE_INFO_CONFIRM,
+                    encode_site_info(site, name=name, language=language),
+                )
+            finally:
+                try:
+                    session.request(
+                        OperationType.RELEASE_SITE_REQUEST,
+                        OperationType.RELEASE_SITE_CONFIRM,
+                    )
+                except (GatewayResponseError, ProtocolError, TransportError):
+                    # Closing the connection ends the session and its lock.
+                    self.close()
+            written = decode_site_info(
+                self._connected_session()
+                .request(
+                    OperationType.SITE_INFO_REQUEST, OperationType.SITE_INFO_CONFIRM
+                )
+                .body
+            )
+            if (name is not None and written.name != name) or (
+                language is not None and written.language != language
+            ):
+                raise ProtocolError("gateway did not report the written site settings")
+            self._site = written
+            self.unsupported_gateway_reads.discard("site")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_remote_access(self, enabled: bool) -> GatewaySnapshot:
+        """Switch the access over the internet and read the setting back."""
+        try:
+            session = self._connected_session()
+            session.request(
+                OperationType.SET_REMOTE_ACCESS_REQUEST,
+                OperationType.SET_REMOTE_ACCESS_CONFIRM,
+                encode_remote_access(enabled),
+            )
+
+            def read() -> bool | None:
+                return decode_remote_access(
+                    session.request(
+                        OperationType.REMOTE_ACCESS_REQUEST,
+                        OperationType.REMOTE_ACCESS_CONFIRM,
+                    ).body
+                )
+
+            written = self._wait_for(read, lambda value: value is enabled)
+            if written is not enabled:
+                raise ProtocolError("gateway did not report the written access setting")
+            self._remote_access = written
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_room_settings(
+        self, room_id: int, *, name: str | None = None, room_type: int | None = None
+    ) -> GatewaySnapshot:
+        """Change a room's name or type, as the app's room page, and read back."""
+        try:
+            room = self._find_room(room_id)
+            if room is None:
+                raise CommandValidationError("room_unavailable")
+            self._connected_session().request(
+                OperationType.SET_ROOM_REQUEST,
+                OperationType.SET_ROOM_CONFIRM,
+                encode_room_settings(room, name=name, room_type=room_type),
+            )
+
+            def written(item: Room | None) -> bool:
+                return item is not None and (
+                    (name is None or item.name == name)
+                    and (room_type is None or item.room_type == room_type)
+                )
+
+            result = self._wait_for(
+                lambda: self._find_room(room_id),
+                lambda item: item is None or written(item),
+            )
+            if not written(result):
+                raise ProtocolError("gateway did not report the written room settings")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
     def _find_room(self, room_id: int) -> Room | None:
         """Read the rooms and return one of them."""
         return next(
@@ -1127,6 +1299,75 @@ class ConnectBoxClient:
         if operation.type == OperationType.SCHEDULES_NOTIFICATION:
             # A client changed a schedule; read the list again.
             self._schedules_read = None
+        elif operation.type in (
+            OperationType.ACTION_LOG_NOTIFICATION,
+            OperationType.SITE_INFO_NOTIFICATION,
+        ):
+            # The gateway logged a new entry or a client changed the site;
+            # read the gateway's own data again.
+            self._action_log_read = None
+
+    def _read_action_log(self) -> None:
+        """Read the gateway's own data (GATEWAY_READS) when due.
+
+        Like the schedule list, a request the gateway refuses is not repeated
+        until the integration is reloaded, and a missing answer only delays
+        the next read, so neither fails the snapshot.
+        """
+        now = time.monotonic()
+        if self._session is None or now < self._action_log_retry_after:
+            return
+        if (
+            self._action_log_read is not None
+            and now - self._action_log_read < ACTION_LOG_REFRESH_INTERVAL
+        ):
+            return
+        for name, request, confirm in GATEWAY_READS:
+            if name in self.unsupported_gateway_reads:
+                continue
+            try:
+                response = self._connected_session().request(
+                    request, confirm, timeout=SCHEDULES_REQUEST_TIMEOUT
+                )
+                self._store_gateway_read(name, response.body)
+            except (GatewayResponseError, ProtobufDecodeError):
+                self.unsupported_gateway_reads.add(name)
+                self._store_gateway_read(name, None)
+                self.close()
+                return
+            except (ProtocolError, TransportError):
+                self._action_log_retry_after = now + ACTION_LOG_RETRY_INTERVAL
+                self.close()
+                return
+        self._action_log_read = now
+
+    def _store_gateway_read(self, name: str, body: bytes | None) -> None:
+        """Keep the decoded answer of a gateway read, or forget it (None)."""
+        if name == "time":
+            if body is not None:
+                self._local_time_offset = decode_local_time_offset(body)
+        elif name == "history":
+            self._action_log = (
+                self._unix_time_entries(decode_action_log(body))
+                if body is not None
+                else None
+            )
+        elif name == "remote_access":
+            self._remote_access = (
+                decode_remote_access(body) if body is not None else None
+            )
+        elif name == "site":
+            self._site = decode_site_info(body) if body is not None else None
+        elif name == "users":
+            self._paired_apps = (
+                self._unix_time_apps(decode_paired_apps(body))
+                if body is not None
+                else None
+            )
+        elif name == "update":
+            self._update_progress = (
+                decode_update_progress(body) if body is not None else None
+            )
 
     def _read_schedules(self, run_state: RunState) -> Schedules | None:
         """Return the schedule list, read again when it may have changed.
@@ -1180,6 +1421,32 @@ class ConnectBoxClient:
             return cached
         self._schedules_read = now
         return self._schedules
+
+    def _unix_time_apps(self, apps: tuple[PairedApp, ...]) -> tuple[PairedApp, ...]:
+        """Turn the gateway's local times into Unix time, where known."""
+        offset = self._local_time_offset
+        if not offset:
+            return apps
+        return tuple(
+            replace(app, last_active=app.last_active - offset)
+            if app.last_active
+            else app
+            for app in apps
+        )
+
+    def _unix_time_entries(
+        self, entries: tuple[ActionLogEntry, ...]
+    ) -> tuple[ActionLogEntry, ...]:
+        """Turn the gateway's local times into Unix time, where known."""
+        offset = self._local_time_offset
+        if not offset:
+            return entries
+        return tuple(
+            replace(entry, timestamp=entry.timestamp - offset)
+            if entry.timestamp
+            else entry
+            for entry in entries
+        )
 
     def _read_version(self) -> VersionInfo:
         response = self._connected_session().request(
