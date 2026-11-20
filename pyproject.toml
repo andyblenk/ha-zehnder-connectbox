@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+# The Home Assistant test harness (pytest-homeassistant-custom-component)
+# needs its asynchronous fixtures run automatically.
+asyncio_mode = "auto"
+testpaths = ["tests"]
