@@ -62,7 +62,10 @@ with sanitized integration diagnostics.
 - One Home Assistant gateway device for each ConnectBox
 - Separate Home Assistant devices for supported connected ventilation units
 - Automatic detection of supported units linked later in the official app
-- Native fan, switch, select, sensor, binary-sensor, and button entities
+- Native fan, switch, select, number, date-and-time, sensor, binary-sensor,
+  and button entities
+- The functions of the official app's pages: schedules, absence planner,
+  boost, summer ventilation and unit settings
 - Local polling, automatic reconnect, and privacy-preserving diagnostics
 - Multiple ConnectBoxes as separate Home Assistant config entries
 
@@ -109,6 +112,44 @@ summer ventilation role sensor.
 The ConnectBox firmware version is shown in its Home Assistant device
 information when reported by the gateway.
 
+#### Schedules and absence planner
+
+These entities follow the pages of the official app. They appear once the
+ConnectBox reports the matching data.
+
+| Entity | Home Assistant type | Function |
+| --- | --- | --- |
+| Weekly schedule / Daily schedule | Sensor | Active weekly schedule with all stored schedules, and today's daily schedule with its switching times and timed functions |
+| Active weekly schedule | Select | Makes a stored weekly schedule the active one |
+| At home | Switch | Switches between at home and away while the schedule keeps running, like the house on the app's start screen; selecting a situation instead switches to the manual mode |
+| Absence planner | Switch | Saves or switches off the app's absence planner; the system runs in frost protection during the period |
+| Absence start / Absence end | Date and time | Period of the absence planner; while the planner is off, the period is kept until it is switched on |
+| Absence running | Binary sensor | On while the absence period runs |
+
+The services `zehnder_connectbox.save_day_plan`, `remove_day_plan`,
+`save_week_plan` and `remove_week_plan` add, change and remove schedules.
+Schedules are referred to by name or ID; parts left out of a change stay as
+they are. A daily schedule switches between `awake`, `asleep` and `away` and
+needs a switching time at 00:00. Timed functions are `boost` (for a room whose
+unit offers it) and `summer_ventilation`. A weekly schedule lists the daily
+schedules from Monday to Sunday, or one for the whole week.
+
+```yaml
+action: zehnder_connectbox.save_day_plan
+data:
+  name: Home office
+  slots:
+    - {start: "00:00", situation: asleep}
+    - {start: "07:00", situation: awake}
+    - {start: "22:30", situation: asleep}
+  functions:
+    - {start: "07:00", function: boost, duration_minutes: 15, room: Office}
+```
+
+Wi-Fi setup, pairing and removing apps or units, rooms, system settings, the
+history, push notifications, the firmware update and the service partner access
+stay in the official app.
+
 ### Supported ventilation unit
 
 | Entity | Home Assistant type | Function |
@@ -125,16 +166,22 @@ information when reported by the gateway.
 | Exhaust fan speed | Sensor | Exhaust fan speed in rpm |
 | Supply fan speed | Sensor | Supply fan speed in rpm |
 | Supply-only operation | Binary sensor | On while the unit runs in supply-only operation with its exhaust fan switched off; only on ComfoSpot 50 units that report it |
-| Filter runtime | Sensor | Hours elapsed since the last filter reset |
-| Remaining filter runtime | Sensor | Hours remaining before filter maintenance is due |
-| Maximum filter runtime | Diagnostic sensor | Configured filter maintenance interval |
+| Filter runtime | Sensor | Days elapsed since the last filter reset |
+| Remaining filter runtime | Sensor | Days remaining before filter maintenance is due |
+| Maximum filter runtime | Diagnostic sensor | Configured filter maintenance interval in days |
 | Filter replacement required | Diagnostic binary sensor | Indicates that filter maintenance is due |
 | Fault | Diagnostic binary sensor | Indicates a currently reported device fault |
 | Signal strength | Diagnostic sensor | Radio signal strength between the unit and ConnectBox |
 | Level at home, asleep, away, frost protection | Configuration select | Configured level of the unit's room for each situation of the official app |
 | Temporary change until | Sensor | End of a temporary change, such as a level changed on the unit's control panel; unknown while none is active |
 | Boost until | Sensor | End of a running boost; unknown while none is running |
-| Summer ventilation role | Diagnostic sensor | Whether the unit supplies, exhausts, or supplies and exhausts air during the summer ventilation, as set in the official app; created when a ComfoSpot 50 reports it |
+| Summer ventilation role | Configuration select and diagnostic sensor | Whether the unit supplies, exhausts, or supplies and exhausts air during the summer ventilation, as on the unit's page in the app; created when a ComfoSpot 50 reports it |
+| Fan status | Sensor | What the unit does right now (central off, standby, level 1–4, sensor mode, boost, summer ventilation), with level, situation, fan speeds, end times and fault codes as attributes |
+| Boost | Switch | Starts a boost of the unit's room for its duration or ends it early, like the app's Boost button; a boost started in the app is shown |
+| Boost duration | Configuration number | Duration of the room's boost, 15–120 minutes in steps of 15 |
+| Level 1 runtime per hour | Configuration number | Minutes per hour the unit runs in level 1 (15, 30, 45 or 60), as on the unit's page in the app |
+| Bath function, Automatic operation sensors | Diagnostic sensors | Settings the app shows read-only on the unit's page |
+| Error log | Diagnostic sensor | The unit's last error codes with their operating hours |
 | Reset filter timer | Configuration button | Resets the filter counter after filter maintenance; currently verified for ComfoSpot 50 |
 
 The ventilation fan entity provides Home Assistant's standard power and speed
@@ -167,9 +214,9 @@ If an earlier version already created an extract-air temperature entity and it
 remains unavailable after updating, remove the stale entity from Home
 Assistant's entity registry under **Settings → Devices & services → Entities**.
 
-Firmware updates, installer-only settings, and unverified functions such as
-starting a boost are deliberately not exposed. A boost started in the official
-app is shown.
+Installer-only settings stay in the official app. The boost, its duration,
+the level 1 runtime and the summer ventilation role were checked against the
+official app on ComfoSpot 50 units and are offered only for that profile.
 
 Supply-only operation is switched on and off at the unit itself: in levels 1–4,
 touch (+) for about five seconds. Below an outdoor temperature of 13 °C, the

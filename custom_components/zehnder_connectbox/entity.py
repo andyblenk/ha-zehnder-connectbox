@@ -33,9 +33,11 @@ class ConnectBoxDeviceEntity(CoordinatorEntity[ZehnderConnectBoxCoordinator]):
         super().__init__(coordinator)
         self.device_id = device_id
         gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        # The link to the gateway is set with via_device_id when the
+        # coordinator registers the device; the deprecated via_device
+        # parameter must not be passed here (removed in HA 2027.8).
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{gateway_uuid}:{device_id}")},
-            via_device=(DOMAIN, gateway_uuid),
         )
 
     @property

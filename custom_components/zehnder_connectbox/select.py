@@ -13,8 +13,14 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID, DOMAIN, SENSOR_MODE_LEVEL
 from .entity import ConnectBoxDeviceEntity, ConnectBoxGatewayEntity
-from .models import RunMode, TemperatureMode
-from .profiles import is_supported, supports_sensor_mode
+from .models import RunMode, Schedules, TemperatureMode
+from .profiles import (
+    SUMMER_VENTILATION_ROLE_VALUES,
+    is_supported,
+    summer_ventilation_role,
+    summer_ventilation_role_key,
+    supports_sensor_mode,
+)
 
 MODE_TO_OPTION = {
     RunMode.AUTOMATIC: "automatic",
@@ -65,17 +71,31 @@ async def async_setup_entry(
         [ConnectBoxOperatingMode(coordinator), ConnectBoxSituation(coordinator)]
     )
     known: set[tuple[int, int]] = set()
+    known_roles: set[int] = set()
+    week_plan_added = False
 
     @callback
     def add_new_entities() -> None:
+        nonlocal week_plan_added
         if coordinator.data is None:
             return
-        new_entities: list[ConnectBoxSituationLevel] = []
+        new_entities: list[SelectEntity] = []
+        if not week_plan_added and coordinator.data.schedules is not None:
+            new_entities.append(ConnectBoxActiveWeekPlan(coordinator))
+            week_plan_added = True
         for room in coordinator.data.rooms:
             modes = {value.temperature_mode for value in room.ventilation}
             for device in room.devices:
                 if not is_supported(device):
                     continue
+                if (
+                    device.device_id not in known_roles
+                    and summer_ventilation_role_key(device) is not None
+                ):
+                    new_entities.append(
+                        ConnectBoxSummerVentilationRole(coordinator, device.device_id)
+                    )
+                    known_roles.add(device.device_id)
                 for mode in SITUATIONS:
                     identity = (device.device_id, int(mode))
                     if identity in known or int(mode) not in modes:
@@ -218,3 +238,115 @@ class ConnectBoxSituationLevel(ConnectBoxDeviceEntity, SelectEntity):
         await self.coordinator.async_set_level(
             data[0].room_id, OPTION_TO_LEVEL[option], self._mode
         )
+
+
+class ConnectBoxSummerVentilationRole(ConnectBoxDeviceEntity, SelectEntity):
+    """Role of the unit in the summer ventilation, as set in the app.
+
+    The app offers supply and exhaust (the unit takes no part), supply, or
+    exhaust on the unit's settings page. The role cannot be changed while a
+    summer ventilation interval runs.
+    """
+
+    _attr_translation_key = "summer_ventilation_role"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_options: ClassVar[list[str]] = list(SUMMER_VENTILATION_ROLE_VALUES)
+
+    def __init__(self, coordinator, device_id: int) -> None:
+        super().__init__(coordinator, device_id)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_{device_id}_summer_ventilation_role"
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the role reported by the unit."""
+        data = self.device_data
+        return summer_ventilation_role(data[1]) if data is not None else None
+
+    @property
+    def available(self) -> bool:
+        """Only allow a change while the unit reports its role."""
+        if not super().available:
+            return False
+        data = self.device_data
+        return data is not None and summer_ventilation_role_key(data[1]) is not None
+
+    async def async_select_option(self, option: str) -> None:
+        """Write the role and read it back from the unit."""
+        if option == self.current_option:
+            return
+        await self.coordinator.async_set_summer_ventilation_role(
+            self.device_id, SUMMER_VENTILATION_ROLE_VALUES[option]
+        )
+
+
+def week_plan_options(schedules: Schedules) -> dict[str, int]:
+    """Name each weekly schedule as in the app; add the ID where needed.
+
+    A schedule without a name, or with a name another one shares, is shown
+    with its ID so every option stays unique.
+    """
+    names = [plan.name for plan in schedules.week_plans]
+    options: dict[str, int] = {}
+    for plan in schedules.week_plans:
+        if plan.name and names.count(plan.name) == 1:
+            options[plan.name] = plan.plan_id
+        else:
+            options[f"{plan.name or ''} ({plan.plan_id})".strip()] = plan.plan_id
+    return options
+
+
+class ConnectBoxActiveWeekPlan(ConnectBoxGatewayEntity, SelectEntity):
+    """Select the active weekly schedule, as on the app's plan page.
+
+    The options are the weekly schedules stored on the gateway. The gateway
+    confirmed the change and reported the new schedule and today's daily
+    schedule in its run state.
+    """
+
+    _attr_translation_key = "active_week_plan"
+    _attr_icon = "mdi:calendar-week"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_active_week_plan"
+
+    def _options(self) -> dict[str, int]:
+        snapshot = self.coordinator.data
+        if snapshot is None or snapshot.schedules is None:
+            return {}
+        return week_plan_options(snapshot.schedules)
+
+    @property
+    def options(self) -> list[str]:
+        """Return the stored weekly schedules."""
+        return list(self._options())
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the active weekly schedule."""
+        snapshot = self.coordinator.data
+        if snapshot is None:
+            return None
+        active = snapshot.run_state.week_plan
+        return next(
+            (name for name, plan_id in self._options().items() if plan_id == active),
+            None,
+        )
+
+    @property
+    def available(self) -> bool:
+        """Only offer a change while the schedule list is known."""
+        return super().available and bool(self._options())
+
+    async def async_select_option(self, option: str) -> None:
+        """Activate the selected weekly schedule."""
+        plan_id = self._options().get(option)
+        if plan_id is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="plan_unknown"
+            )
+        if option == self.current_option:
+            return
+        await self.coordinator.async_set_active_week_plan(plan_id)
