@@ -478,6 +478,11 @@
       "room_name": {
         "name": "Raumname"
       }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
     }
   },
   "exceptions": {
@@ -648,6 +653,18 @@
     },
     "presence_needs_schedule": {
       "message": "Daheim und Abwesend lassen sich so nur umschalten, während der Zeitplan läuft (Automatikbetrieb)."
+    },
+    "firmware_update_locked": {
+      "message": "Eine andere App aktualisiert gerade die Firmware."
+    },
+    "firmware_update_running": {
+      "message": "Ein Firmware-Upload läuft bereits."
+    },
+    "firmware_not_newer": {
+      "message": "Im Ordner zehnder_connectbox wurde kein Firmware-Paket gefunden, das neuer als die installierte Version ist."
+    },
+    "firmware_invalid": {
+      "message": "Das Firmware-Paket wurde geändert oder ist nicht mehr gültig. Kopiere es erneut aus der offiziellen App."
     }
   },
   "services": {

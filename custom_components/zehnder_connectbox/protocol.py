@@ -73,6 +73,9 @@ class IncompleteFrame(ProtocolError):
 class OperationType(IntEnum):
     """Operations used by this integration."""
 
+    # Firmware package of the system, sent in blocks as the app does.
+    UPGRADE_REQUEST = 16
+    UPGRADE_CONFIRM = 66
     VERSION_REQUEST = 18
     VERSION_CONFIRM = 68
     REMOTE_ACCESS_REQUEST = 140
@@ -148,6 +151,15 @@ class OperationType(IntEnum):
     SET_DEVICE_PROPERTIES_CONFIRM = 345
     DEVICE_PROPERTIES_REQUEST = 346
     DEVICE_PROPERTIES_CONFIRM = 347
+
+
+class UpgradeCommand(IntEnum):
+    """Position of a block in a firmware upload, from the app's enumeration."""
+
+    START = 0
+    CONTINUE = 1
+    FINISH = 2
+    ABORT = 3
 
 
 class PropertySequenceCommand(IntEnum):
@@ -531,6 +543,28 @@ def decode_remote_access(message: bytes) -> bool | None:
     if value is None:
         return None
     return value == 0
+
+
+UPGRADE_BLOCK_SIZE = 256
+
+
+def encode_upgrade(command: UpgradeCommand, chunk: bytes = b"") -> bytes:
+    """Build one request of a firmware upload.
+
+    The app sends the package in blocks of 256 bytes: the first with the
+    start command, the others with continue, then finish without a block.
+    The command is always written, also the start command's zero.
+    """
+    if len(chunk) > UPGRADE_BLOCK_SIZE:
+        raise ValueError(f"a block has at most {UPGRADE_BLOCK_SIZE} bytes")
+    if command in (UpgradeCommand.START, UpgradeCommand.CONTINUE) and not chunk:
+        raise ValueError("a start or continue request needs a block")
+    if command in (UpgradeCommand.FINISH, UpgradeCommand.ABORT) and chunk:
+        raise ValueError("a finish or abort request carries no block")
+    message = encode_uint(1, int(command))
+    if chunk:
+        message += encode_bytes(2, chunk)
+    return message
 
 
 def encode_remote_access(enabled: bool) -> bytes:

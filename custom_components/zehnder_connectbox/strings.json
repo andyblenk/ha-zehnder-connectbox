@@ -478,6 +478,11 @@
       "room_name": {
         "name": "Room name"
       }
+    },
+    "update": {
+      "firmware": {
+        "name": "Firmware"
+      }
     }
   },
   "exceptions": {
@@ -648,6 +653,18 @@
     },
     "presence_needs_schedule": {
       "message": "At home and away can only be switched this way while the schedule runs (automatic mode)."
+    },
+    "firmware_update_locked": {
+      "message": "Another app is updating the firmware."
+    },
+    "firmware_update_running": {
+      "message": "A firmware upload is already running."
+    },
+    "firmware_not_newer": {
+      "message": "No firmware package newer than the installed version was found in the folder zehnder_connectbox."
+    },
+    "firmware_invalid": {
+      "message": "The firmware package changed or is no longer valid. Copy it again from the official app."
     }
   },
   "services": {

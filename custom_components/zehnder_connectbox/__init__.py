@@ -29,6 +29,7 @@ PLATFORMS = (
     Platform.SENSOR,
     Platform.BINARY_SENSOR,
     Platform.TEXT,
+    Platform.UPDATE,
 )
 
 type ZehnderConnectBoxConfigEntry = ConfigEntry[ZehnderConnectBoxCoordinator]

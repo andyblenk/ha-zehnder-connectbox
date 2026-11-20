@@ -63,10 +63,10 @@ with sanitized integration diagnostics.
 - Separate Home Assistant devices for supported connected ventilation units
 - Automatic detection of supported units linked later in the official app
 - Native fan, switch, select, number, date-and-time, text, sensor,
-  binary-sensor, and button entities
+  binary-sensor, button, and update entities
 - The functions of the official app's pages: schedules, absence planner,
-  boost, summer ventilation, room and unit settings, history and system
-  settings
+  boost, summer ventilation, room and unit settings, history, system settings
+  and firmware update
 - Local polling, automatic reconnect, and privacy-preserving diagnostics
 - Multiple ConnectBoxes as separate Home Assistant config entries
 
@@ -134,6 +134,7 @@ ConnectBox reports the matching data.
 | Users | Diagnostic sensor | Number of paired apps; their names and last connection are attributes |
 | Country, Network connection, System version | Diagnostic sensors | Values of the app's settings and service pages |
 | Firmware update | Diagnostic sensor | Whether the units are up to date or an update runs, with its progress |
+| Firmware | Update | Installs a newer firmware package of the official app on the system (see below) |
 
 The services `zehnder_connectbox.save_day_plan`, `remove_day_plan`,
 `save_week_plan` and `remove_week_plan` add, change and remove schedules.
@@ -155,9 +156,26 @@ data:
     - {start: "07:00", function: boost, duration_minutes: 15, room: Office}
 ```
 
+#### Firmware update
+
+The official app ships the firmware of the whole system as a file in its
+installation, for example `Gateway-1.8.1.fw` (on a Mac in
+`/Applications/ZehnderConnect.app/Wrapper/ZehnderConnect.app/`). The app
+offers it when it is newer than the installed system version and uploads it to
+the ConnectBox, which then updates itself and the ventilation units.
+
+Home Assistant cannot download this file. To install a newer version, copy the
+file from an updated app into the folder `zehnder_connectbox` of the Home
+Assistant configuration (for example with the Samba or Studio Code Server
+add-on). The **Firmware** update entity checks the file's header, length and
+checksum and offers it only when it is newer than the installed version. The
+upload takes a few minutes; the ConnectBox restarts afterwards and the entities
+are unavailable briefly. The update of the units is shown as progress while the
+ConnectBox reports it. A failed upload is aborted, so the installed firmware
+stays.
+
 Wi-Fi setup, pairing and removing apps or units, adding rooms, push
-notifications, the firmware update and the service partner access stay in the
-official app.
+notifications and the service partner access stay in the official app.
 
 ### Supported ventilation unit
 

@@ -31,6 +31,7 @@ from .const import (
     PROPERTY_REFRESH_INTERVAL,
 )
 from .errors import CommandValidationError
+from .firmware import FirmwarePackage
 from .models import (
     DayPlan,
     GatewaySnapshot,
@@ -116,6 +117,8 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         # written when the planner is switched on. Not stored.
         self.pending_absence_start: int | None = None
         self.pending_absence_end: int | None = None
+        # When a firmware package was last uploaded (monotonic), if ever.
+        self.firmware_installed_at: float | None = None
 
     async def _async_update_data(self) -> GatewaySnapshot:
         now = time.monotonic()
@@ -439,6 +442,31 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
             partial(self.client.set_presence, home)
         )
         self._accept_command_snapshot(snapshot)
+
+    async def async_install_firmware(
+        self, package: FirmwarePackage, progress: Callable[[int, int], None]
+    ) -> None:
+        """Upload a firmware package; progress is reported in the event loop.
+
+        The upload holds the connection until the gateway confirmed the
+        finish request, so no poll or command interleaves with it.
+        """
+
+        def report(done: int, total: int) -> None:
+            self.hass.loop.call_soon_threadsafe(progress, done, total)
+
+        def upload() -> None:
+            self.client.upload_firmware(package, report)
+
+        _LOGGER.info(
+            "Uploading ConnectBox firmware %s (%d bytes)",
+            package.version_text,
+            len(package.data),
+        )
+        await self._async_execute_command(upload)
+        _LOGGER.info("ConnectBox firmware %s uploaded", package.version_text)
+        # The gateway restarts; the next polls reconnect and read the version.
+        self.firmware_installed_at = time.monotonic()
 
     async def async_set_site_info(
         self, *, name: str | None = None, language: int | None = None
