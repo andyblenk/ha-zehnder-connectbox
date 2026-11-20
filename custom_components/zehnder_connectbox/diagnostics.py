@@ -21,17 +21,22 @@ from .profiles import (
     SENSOR_TYPE_CO2,
     SENSOR_TYPE_HUMIDITY,
     SUPPLY_FAN_SPEED,
+    automatic_sensors,
+    bath_function,
     board_reading,
     format_version,
     has_filter_warning,
     has_sensor_board,
     is_supported,
+    level_one_runtime,
     product_name,
     sensor_available,
+    summer_ventilation_role,
     supply_only_operation,
     supports_sensor_mode,
     temperature_value,
 )
+from .status import error_codes
 
 
 def _temperature_mode_name(mode: int) -> str:
@@ -147,6 +152,11 @@ async def async_get_config_entry_diagnostics(
                 "exhaust_fan_speed": EXHAUST_FAN_SPEED.value(device),
                 "supply_fan_speed": SUPPLY_FAN_SPEED.value(device),
                 "supply_only_operation": supply_only_operation(device),
+                "level_one_runtime": level_one_runtime(device),
+                "summer_ventilation_role": summer_ventilation_role(device),
+                "bath_function": bath_function(device),
+                "automatic_sensors": automatic_sensors(device),
+                "error_codes": error_codes(device),
             }
             for room in snapshot.rooms
             for device in room.devices

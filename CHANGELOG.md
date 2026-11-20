@@ -3,6 +3,45 @@
 All notable changes to this project will be documented in this file. The
 project follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Add a fan status sensor per unit that shows what the unit is doing right
+  now (central off, standby, level 1–4, sensor mode, boost, summer
+  ventilation) with a matching icon, and carries the level, situation, fan
+  speeds, supply-only operation, end times and active fault codes as
+  attributes for dashboards.
+- List the active fault codes on the fault sensor.
+- Add icons for the ventilation levels, fan speeds, filter values and end
+  times.
+- Start and stop a room's boost and set its duration, set the runtime of
+  level 1 per hour and the summer ventilation role of a unit, and show its
+  bath function, automatic operation sensors and error log, as on the unit's
+  page in the official app (ComfoSpot 50).
+
+### Changed
+
+- Show the ventilation levels with numbered icons (1–4), clearly apart from
+  the sensor-controlled `auto` preset.
+- **Breaking:** the ventilation presets are now `level_1` to `level_4` and
+  `auto`, so the frontend shows them translated ("Stufe 1" …). Automations
+  that call `fan.set_preset_mode` with `Level 1` to `Level 4` must be updated.
+
+### Fixed
+
+- Stop passing the deprecated `via_device` device information and use
+  `UnitOfRatio.PARTS_PER_MILLION` for CO2, both removed in Home Assistant
+  2027.8. The link to the ConnectBox is still set when devices are registered;
+  versions that do not accept the device ID for the link get the identifier.
+- Report the filter runtime, remaining runtime and maintenance interval in
+  days instead of hours; the unit counts days (for example a 90-day
+  interval).
+- Show only the active fault codes on the fault sensor; the unit's error log
+  is history and now has its own sensor.
+- Read the slowly changing unit settings with the filter values instead of on
+  every poll, and skip a request the unit rejects until the next reload.
+
 ## [0.3.3] - 2026-11-20
 
 ### Fixed

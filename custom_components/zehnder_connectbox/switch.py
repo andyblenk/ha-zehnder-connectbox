@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime
 
 from homeassistant.components.switch import SwitchEntity
@@ -11,9 +12,12 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID
-from .entity import ConnectBoxGatewayEntity
+from .entity import ConnectBoxDeviceEntity, ConnectBoxGatewayEntity
 from .models import GatewaySnapshot, RunMode
-from .profiles import supports_summer_ventilation
+from .profiles import (
+    supports_boost,
+    supports_summer_ventilation,
+)
 
 
 def _supports_summer_ventilation(snapshot: GatewaySnapshot) -> bool:
@@ -53,6 +57,28 @@ async def async_setup_entry(
 
     add_summer_when_supported()
     entry.async_on_unload(coordinator.async_add_listener(add_summer_when_supported))
+
+    known_boost: set[int] = set()
+
+    @callback
+    def add_boost_switches() -> None:
+        if coordinator.data is None:
+            return
+        new_ids = {
+            device.device_id
+            for room in coordinator.data.rooms
+            for device in room.devices
+            if supports_boost(room, device)
+        } - known_boost
+        if new_ids:
+            async_add_entities(
+                ConnectBoxBoostSwitch(coordinator, device_id)
+                for device_id in sorted(new_ids)
+            )
+            known_boost.update(new_ids)
+
+    add_boost_switches()
+    entry.async_on_unload(coordinator.async_add_listener(add_boost_switches))
 
 
 class ConnectBoxVentilationSwitch(ConnectBoxGatewayEntity, SwitchEntity):
@@ -184,3 +210,60 @@ class ConnectBoxSummerVentilationEnabledSwitch(ConnectBoxGatewayEntity, SwitchEn
     async def async_turn_off(self, **kwargs) -> None:
         """Disable the summer function while preserving its duration."""
         await self.coordinator.async_set_summer_configuration(enabled=False)
+
+
+class ConnectBoxBoostSwitch(ConnectBoxDeviceEntity, SwitchEntity):
+    """Start or stop the boost of the unit's room, like the app's Boost button.
+
+    The state follows the end of the boost the gateway reports, so a boost
+    started in the app or ended by its timer shows as well.
+    """
+
+    _attr_translation_key = "boost"
+    _attr_icon = "mdi:fan-plus"
+
+    def __init__(self, coordinator, device_id: int) -> None:
+        super().__init__(coordinator, device_id)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_{device_id}_boost"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return whether the room reports a running boost."""
+        data = self.device_data
+        return data[0].boost_active(time.time()) if data is not None else None
+
+    @property
+    def available(self) -> bool:
+        """Only offer the boost while the room reports its duration."""
+        if not super().available:
+            return False
+        data = self.device_data
+        return data is not None and supports_boost(*data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, int | str | None]:
+        """Show the room's duration and the reported end of a boost."""
+        data = self.device_data
+        if data is None:
+            return {}
+        room = data[0]
+        ends_at = None
+        if room.boost_until and room.boost_active(time.time()):
+            try:
+                ends_at = datetime.fromtimestamp(room.boost_until, UTC).isoformat()
+            except (OverflowError, OSError, ValueError):
+                ends_at = None
+        return {"duration_minutes": room.boost_duration, "ends_at": ends_at}
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Start a boost for the room's configured duration."""
+        data = self.device_data
+        if data is not None:
+            await self.coordinator.async_set_boost(data[0].room_id, True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """End the room's running boost early."""
+        data = self.device_data
+        if data is not None:
+            await self.coordinator.async_set_boost(data[0].room_id, False)

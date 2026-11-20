@@ -14,11 +14,13 @@ from .entity import ConnectBoxDeviceEntity, supported_device_ids
 from .models import RunMode
 from .profiles import supports_sensor_mode
 
+# Preset names are translation keys, so the frontend shows them in the user's
+# language ("Stufe 1" … "Stufe 4", "Automatik (Sensor)").
 PRESET_LEVELS = {
-    "Level 1": 1,
-    "Level 2": 2,
-    "Level 3": 3,
-    "Level 4": 4,
+    "level_1": 1,
+    "level_2": 2,
+    "level_3": 3,
+    "level_4": 4,
 }
 PRESET_AUTO = "auto"
 

@@ -44,6 +44,12 @@ ROOM_BOOST_DURATION = 22
 """Configured boost duration in minutes (the app offers 15 to 120)."""
 ROOM_TEMPORARY_UNTIL = 61
 """Unix time of the next schedule change that ends a temporary change."""
+# Room-value update (SET_ROOM_VALUE) field with which the official app starts
+# and stops a boost. The gateway forwarded the app's update to this client as
+# an unsolicited room-value notification: the room ID and field 15 set to the
+# end of the boost as Unix time when the app started a 15-minute boost, and to
+# 0 when the app ended it early. The room then reported field 18 accordingly.
+ROOM_VALUE_BOOST_UNTIL = 15
 
 
 class ProtocolError(ConnectionError):
@@ -244,7 +250,8 @@ def decode_summer_ventilation_settings(message: bytes) -> SummerVentilationSetti
 def encode_summer_ventilation_settings(enabled: bool, duration_hours: int) -> bytes:
     """Build a complete gateway-wide summer function configuration."""
     if not isinstance(enabled, bool):
-        raise ValueError("summer ventilation enabled must be a boolean")
+        # Callers handle invalid settings as ValueError, like the duration.
+        raise ValueError("summer ventilation enabled must be a boolean")  # noqa: TRY004
     if (
         isinstance(duration_hours, bool)
         or not isinstance(duration_hours, int)
@@ -359,6 +366,16 @@ def _decode_property(message: bytes) -> PropertyValue:
     )
 
 
+def encode_room_boost(room_id: int, until: int) -> bytes:
+    """Build the room-value update that starts (end time) or stops (0) a boost."""
+    for value in (room_id, until):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError("room ID and boost end must be non-negative integers")
+    return encode_bytes(
+        1, encode_uint(1, room_id) + encode_uint(ROOM_VALUE_BOOST_UNTIL, until)
+    )
+
+
 def encode_room_level(room: Room, temperature_mode: int, level: int) -> bytes:
     """Update one active mode while preserving all other room mode values."""
     if level not in VENTILATION_LEVELS and level != SENSOR_MODE_LEVEL:
@@ -429,6 +446,49 @@ def encode_filter_reset_room(room: Room, device_id: int) -> bytes:
 
     if not device_found:
         raise ProtocolError("device is no longer attached to this room")
+    return encode_bytes(1, bytes(room_value))
+
+
+def encode_room_number_update(room: Room, values: dict[int, int]) -> bytes:
+    """Write a room back with number fields changed.
+
+    The room is sent as read, without the device fields 30, 31, and 41 that
+    the official client leaves out of a room write, and without a filter
+    acknowledgement. Only the given top-level number fields change; a field
+    the gateway did not report is added in field-number order.
+    """
+    if not values:
+        raise ValueError("no room field to change")
+    for number, value in values.items():
+        if number in (1, 2, 3, 8, 19, 101) or number < 1:
+            raise ValueError("this room field cannot be changed as a number")
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError("room field values must be non-negative integers")
+    if not room.raw:
+        raise ProtocolError("room does not contain its original gateway data")
+
+    pending = dict(sorted(values.items()))
+    room_value = bytearray()
+    for field in decode_fields(room.raw):
+        for number in [item for item in pending if item < field.number]:
+            room_value.extend(encode_uint(number, pending.pop(number)))
+        if field.number in pending:
+            if field.wire_type is not WireType.VARINT:
+                raise ProtocolError("the room field is not a number")
+            room_value.extend(encode_uint(field.number, pending.pop(field.number)))
+            continue
+        if field.number in values and field.wire_type is WireType.VARINT:
+            continue  # a repeated occurrence of a field that was replaced
+        if field.number == 8 and field.wire_type is WireType.BYTES:
+            device_fields = decode_fields(bytes(field.value))
+            writable_fields = tuple(
+                item for item in device_fields if item.number not in (30, 31, 41)
+            )
+            room_value.extend(encode_bytes(8, _encode_fields(writable_fields)))
+            continue
+        room_value.extend(_encode_field(field))
+    for number, value in pending.items():
+        room_value.extend(encode_uint(number, value))
     return encode_bytes(1, bytes(room_value))
 
 
