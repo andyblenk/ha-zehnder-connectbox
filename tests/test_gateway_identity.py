@@ -51,12 +51,14 @@ class GatewayIdentityTests(unittest.TestCase):
 
     def test_other_gateway_is_rejected_even_when_it_refuses_the_request(self):
         transport = self.make_transport(UUID(int=9), 7)
-        with patch(
-            "custom_components.zehnder_connectbox.client.ConnectBoxTransport",
-            return_value=transport,
+        with (
+            patch(
+                "custom_components.zehnder_connectbox.client.ConnectBoxTransport",
+                return_value=transport,
+            ),
+            self.assertRaises(ProtocolError),
         ):
-            with self.assertRaises(ProtocolError):
-                ConnectBoxClient.check_gateway_identity("test.invalid", UUID(int=1))
+            ConnectBoxClient.check_gateway_identity("test.invalid", UUID(int=1))
         transport.close.assert_called_once()
 
 

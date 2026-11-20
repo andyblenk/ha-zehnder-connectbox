@@ -7,14 +7,14 @@ from types import MappingProxyType
 from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID
 
-from homeassistant.config_entries import ConfigEntries, ConfigEntry, SOURCE_REAUTH
+from homeassistant.config_entries import SOURCE_REAUTH, ConfigEntries, ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 
+from custom_components.zehnder_connectbox.client import PairingError
 from custom_components.zehnder_connectbox.config_flow import (
     ZehnderConnectBoxConfigFlow,
 )
-from custom_components.zehnder_connectbox.client import PairingError
 from custom_components.zehnder_connectbox.coordinator import (
     ZehnderConnectBoxCoordinator,
 )
@@ -83,11 +83,14 @@ class ReauthTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_reauth_requires_confirmation_before_discovery_or_pairing(self):
         original = dict(self.entry.data)
-        with patch(
-            "custom_components.zehnder_connectbox.config_flow.discover_gateways"
-        ) as discover, patch(
-            "custom_components.zehnder_connectbox.config_flow.ConnectBoxClient.pair"
-        ) as pair:
+        with (
+            patch(
+                "custom_components.zehnder_connectbox.config_flow.discover_gateways"
+            ) as discover,
+            patch(
+                "custom_components.zehnder_connectbox.config_flow.ConnectBoxClient.pair"
+            ) as pair,
+        ):
             result = await self.flow.async_step_reauth(self.entry.data)
             self.assertEqual(result["type"], "form")
             self.assertEqual(result["step_id"], "reauth_confirm")
@@ -106,19 +109,23 @@ class ReauthTests(unittest.IsolatedAsyncioTestCase):
         for discovered, error in cases:
             with self.subTest(error=error):
                 original = dict(self.entry.data)
-                with patch(
-                    "custom_components.zehnder_connectbox.config_flow."
-                    "discover_gateways",
-                    return_value=discovered,
-                ), patch(
-                    "custom_components.zehnder_connectbox.config_flow."
-                    "ConnectBoxClient.check_gateway_identity",
-                    side_effect=TransportError("synthetic offline gateway"),
-                    create=True,
-                ), patch(
-                    "custom_components.zehnder_connectbox.config_flow."
-                    "ConnectBoxClient.pair"
-                ) as pair:
+                with (
+                    patch(
+                        "custom_components.zehnder_connectbox.config_flow."
+                        "discover_gateways",
+                        return_value=discovered,
+                    ),
+                    patch(
+                        "custom_components.zehnder_connectbox.config_flow."
+                        "ConnectBoxClient.check_gateway_identity",
+                        side_effect=TransportError("synthetic offline gateway"),
+                        create=True,
+                    ),
+                    patch(
+                        "custom_components.zehnder_connectbox.config_flow."
+                        "ConnectBoxClient.pair"
+                    ) as pair,
+                ):
                     result = await self.flow.async_step_reauth_confirm(
                         {"host": "test.invalid", "pairing_name": "Home Assistant"}
                     )
@@ -130,16 +137,17 @@ class ReauthTests(unittest.IsolatedAsyncioTestCase):
         original_id = self.entry.entry_id
         original_options = dict(self.entry.options)
         moved_gateway = DiscoveredGateway("moved.invalid", UUID(int=1))
-        with patch(
-            "custom_components.zehnder_connectbox.config_flow.discover_gateways",
-            return_value={UUID(int=1): moved_gateway},
-        ), patch(
-            "custom_components.zehnder_connectbox.config_flow.ConnectBoxClient.pair",
-            return_value=self.pairing,
-        ) as pair, patch.object(
-            ConfigEntries, "async_schedule_reload"
-        ) as reload, patch.object(
-            ConfigEntries, "_async_save_and_notify"
+        with (
+            patch(
+                "custom_components.zehnder_connectbox.config_flow.discover_gateways",
+                return_value={UUID(int=1): moved_gateway},
+            ),
+            patch(
+                "custom_components.zehnder_connectbox.config_flow.ConnectBoxClient.pair",
+                return_value=self.pairing,
+            ) as pair,
+            patch.object(ConfigEntries, "async_schedule_reload") as reload,
+            patch.object(ConfigEntries, "_async_save_and_notify"),
         ):
             result = await self.flow.async_step_reauth_confirm(
                 {"host": "moved.invalid", "pairing_name": "Test HA"}
@@ -195,15 +203,19 @@ class ReauthTests(unittest.IsolatedAsyncioTestCase):
             discover.assert_not_called()
 
     async def test_known_host_can_reauthenticate_without_udp_discovery(self):
-        with patch(
-            "custom_components.zehnder_connectbox.config_flow.discover_gateways",
-            return_value={},
-        ), patch(
-            "custom_components.zehnder_connectbox.config_flow."
-            "ConnectBoxClient.check_gateway_identity",
-            create=True,
-        ) as check, patch.object(
-            self.flow, "_async_pair", new=AsyncMock(return_value=self.pairing)
+        with (
+            patch(
+                "custom_components.zehnder_connectbox.config_flow.discover_gateways",
+                return_value={},
+            ),
+            patch(
+                "custom_components.zehnder_connectbox.config_flow."
+                "ConnectBoxClient.check_gateway_identity",
+                create=True,
+            ) as check,
+            patch.object(
+                self.flow, "_async_pair", new=AsyncMock(return_value=self.pairing)
+            ),
         ):
             result = await self.flow.async_step_reauth_confirm(
                 {"host": "test.invalid", "pairing_name": "Home Assistant"}
@@ -214,14 +226,18 @@ class ReauthTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.entry.data["certificate_sha256"], "a" * 64)
 
     async def test_tls_identity_mismatch_does_not_start_pairing(self):
-        with patch(
-            "custom_components.zehnder_connectbox.config_flow.discover_gateways",
-            return_value={},
-        ), patch(
-            "custom_components.zehnder_connectbox.config_flow."
-            "ConnectBoxClient.check_gateway_identity",
-            side_effect=ProtocolError("synthetic identity mismatch"),
-        ), patch.object(self.flow, "_async_pair", new=AsyncMock()) as pair:
+        with (
+            patch(
+                "custom_components.zehnder_connectbox.config_flow.discover_gateways",
+                return_value={},
+            ),
+            patch(
+                "custom_components.zehnder_connectbox.config_flow."
+                "ConnectBoxClient.check_gateway_identity",
+                side_effect=ProtocolError("synthetic identity mismatch"),
+            ),
+            patch.object(self.flow, "_async_pair", new=AsyncMock()) as pair,
+        ):
             result = await self.flow.async_step_reauth_confirm(
                 {"host": "test.invalid", "pairing_name": "Home Assistant"}
             )
