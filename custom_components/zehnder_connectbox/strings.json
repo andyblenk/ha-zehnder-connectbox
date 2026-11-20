@@ -205,6 +205,14 @@
           "antifreeze": "Frost protection",
           "override": "Temporary change"
         }
+      },
+      "summer_ventilation_role": {
+        "name": "Summer ventilation role",
+        "state": {
+          "supply_and_exhaust": "Supply and exhaust",
+          "supply": "Supply",
+          "exhaust": "Exhaust"
+        }
       }
     },
     "sensor": {
@@ -309,6 +317,24 @@
             "name": "Error codes"
           }
         }
+      },
+      "bath_function": {
+        "name": "Bath function",
+        "state": {
+          "locked": "Locked",
+          "enabled": "Enabled"
+        }
+      },
+      "automatic_sensors": {
+        "name": "Automatic operation sensors",
+        "state": {
+          "humidity": "Humidity",
+          "air_quality": "Air quality",
+          "both": "Both"
+        }
+      },
+      "error_log": {
+        "name": "Error log"
       }
     },
     "switch": {
@@ -320,11 +346,20 @@
       },
       "summer_ventilation_enabled": {
         "name": "Enable summer ventilation"
+      },
+      "boost": {
+        "name": "Boost"
       }
     },
     "number": {
       "summer_ventilation_duration": {
         "name": "Summer ventilation duration"
+      },
+      "boost_duration": {
+        "name": "Boost duration"
+      },
+      "level_one_runtime": {
+        "name": "Level 1 runtime per hour"
       }
     }
   },
@@ -388,6 +423,42 @@
     },
     "filter_runtime_unavailable": {
       "message": "The filter runtime is not available. Wait for a telemetry update before resetting the filter timer."
+    },
+    "invalid_summer_role": {
+      "message": "Choose supply and exhaust, supply, or exhaust as the summer ventilation role."
+    },
+    "summer_role_interval_active": {
+      "message": "The summer ventilation role cannot be changed while a summer ventilation interval is running."
+    },
+    "summer_role_unsupported": {
+      "message": "Changing the summer ventilation role is not supported for this ventilation unit."
+    },
+    "summer_role_unavailable": {
+      "message": "The ventilation unit does not currently report its summer ventilation role."
+    },
+    "invalid_boost_duration": {
+      "message": "Choose a boost duration between 15 and 120 minutes in steps of 15."
+    },
+    "boost_active": {
+      "message": "The boost duration cannot be changed while a boost is running."
+    },
+    "boost_unsupported": {
+      "message": "The boost is not available for this room."
+    },
+    "boost_mode_unavailable": {
+      "message": "A boost can only be started in automatic or manual mode."
+    },
+    "boost_duration_unavailable": {
+      "message": "The room does not report a valid boost duration."
+    },
+    "invalid_level_one_runtime": {
+      "message": "Choose 15, 30, 45 or 60 minutes as the runtime of level 1 per hour."
+    },
+    "level_one_runtime_unsupported": {
+      "message": "Changing the runtime of level 1 is not supported for this ventilation unit."
+    },
+    "level_one_runtime_unavailable": {
+      "message": "The ventilation unit does not currently report the runtime of level 1."
     },
     "command_rejected": {
       "message": "The ConnectBox rejected the command. Check its operating state and settings in the app."

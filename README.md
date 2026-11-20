@@ -62,7 +62,10 @@ with sanitized integration diagnostics.
 - One Home Assistant gateway device for each ConnectBox
 - Separate Home Assistant devices for supported connected ventilation units
 - Automatic detection of supported units linked later in the official app
-- Native fan, switch, select, sensor, binary-sensor, and button entities
+- Native fan, switch, select, number, sensor, binary-sensor, and button
+  entities
+- The functions of the official app's unit pages: boost, summer ventilation
+  and unit settings
 - Local polling, automatic reconnect, and privacy-preserving diagnostics
 - Multiple ConnectBoxes as separate Home Assistant config entries
 
@@ -109,6 +112,10 @@ summer ventilation role sensor.
 The ConnectBox firmware version is shown in its Home Assistant device
 information when reported by the gateway.
 
+Schedules, the absence planner, Wi-Fi setup, pairing and removing apps or
+units, rooms, system settings, the history, push notifications, the firmware
+update and the service partner access stay in the official app.
+
 ### Supported ventilation unit
 
 | Entity | Home Assistant type | Function |
@@ -134,7 +141,13 @@ information when reported by the gateway.
 | Level at home, asleep, away, frost protection | Configuration select | Configured level of the unit's room for each situation of the official app |
 | Temporary change until | Sensor | End of a temporary change, such as a level changed on the unit's control panel; unknown while none is active |
 | Boost until | Sensor | End of a running boost; unknown while none is running |
-| Summer ventilation role | Diagnostic sensor | Whether the unit supplies, exhausts, or supplies and exhausts air during the summer ventilation, as set in the official app; created when a ComfoSpot 50 reports it |
+| Summer ventilation role | Configuration select and diagnostic sensor | Whether the unit supplies, exhausts, or supplies and exhausts air during the summer ventilation, as on the unit's page in the app; created when a ComfoSpot 50 reports it |
+| Fan status | Sensor | What the unit does right now (central off, standby, level 1–4, sensor mode, boost, summer ventilation), with level, situation, fan speeds, end times and fault codes as attributes |
+| Boost | Switch | Starts a boost of the unit's room for its duration or ends it early, like the app's Boost button; a boost started in the app is shown |
+| Boost duration | Configuration number | Duration of the room's boost, 15–120 minutes in steps of 15 |
+| Level 1 runtime per hour | Configuration number | Minutes per hour the unit runs in level 1 (15, 30, 45 or 60), as on the unit's page in the app |
+| Bath function, Automatic operation sensors | Diagnostic sensors | Settings the app shows read-only on the unit's page |
+| Error log | Diagnostic sensor | The unit's last error codes with their operating hours |
 | Reset filter timer | Configuration button | Resets the filter counter after filter maintenance; currently verified for ComfoSpot 50 |
 
 The ventilation fan entity provides Home Assistant's standard power and speed
@@ -167,9 +180,9 @@ If an earlier version already created an extract-air temperature entity and it
 remains unavailable after updating, remove the stale entity from Home
 Assistant's entity registry under **Settings → Devices & services → Entities**.
 
-Firmware updates, installer-only settings, and unverified functions such as
-starting a boost are deliberately not exposed. A boost started in the official
-app is shown.
+Installer-only settings stay in the official app. The boost, its duration,
+the level 1 runtime and the summer ventilation role were checked against the
+official app on ComfoSpot 50 units and are offered only for that profile.
 
 Supply-only operation is switched on and off at the unit itself: in levels 1–4,
 touch (+) for about five seconds. Below an outdoor temperature of 13 °C, the

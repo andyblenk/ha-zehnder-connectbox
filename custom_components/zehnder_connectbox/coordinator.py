@@ -32,7 +32,13 @@ from .const import (
 )
 from .errors import CommandValidationError
 from .models import GatewaySnapshot, RunMode
-from .profiles import FILTER_RUNTIME, format_version, product_name
+from .profiles import (
+    FILTER_RUNTIME,
+    format_version,
+    level_one_runtime_key,
+    product_name,
+    summer_ventilation_role_key,
+)
 from .protocol import ProtocolError
 from .session import GatewayResponseError
 from .transport import CertificateMismatchError, TransportError
@@ -197,6 +203,57 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         )
         self._last_property_refresh = time.monotonic()
         self._last_filter_property_refresh = self._last_property_refresh
+        self._accept_command_snapshot(snapshot)
+
+    async def async_set_summer_ventilation_role(
+        self, device_id: int, role: int
+    ) -> None:
+        """Write a unit's summer ventilation role and confirm it."""
+        data = self.data.find_device(device_id) if self.data is not None else None
+        if data is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="device_unavailable"
+            )
+        key = summer_ventilation_role_key(data[1])
+        if key is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="summer_role_unavailable"
+            )
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_summer_ventilation_role, device_id, key, role)
+        )
+        self._accept_command_snapshot(snapshot)
+
+    async def async_set_level_one_runtime(self, device_id: int, minutes: int) -> None:
+        """Write a unit's runtime of level 1 per hour and confirm it."""
+        data = self.data.find_device(device_id) if self.data is not None else None
+        if data is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="device_unavailable"
+            )
+        key = level_one_runtime_key(data[1])
+        if key is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="level_one_runtime_unavailable",
+            )
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_level_one_runtime, device_id, key, minutes)
+        )
+        self._accept_command_snapshot(snapshot)
+
+    async def async_set_boost_duration(self, room_id: int, minutes: int) -> None:
+        """Write a room's boost duration and confirm it."""
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_boost_duration, room_id, minutes)
+        )
+        self._accept_command_snapshot(snapshot)
+
+    async def async_set_boost(self, room_id: int, active: bool) -> None:
+        """Start or stop a room's boost and confirm it."""
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_boost, room_id, active)
+        )
         self._accept_command_snapshot(snapshot)
 
     async def async_close(self) -> None:

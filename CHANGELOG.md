@@ -15,6 +15,10 @@ project follows [Semantic Versioning](https://semver.org/).
 - List the active fault codes on the fault sensor.
 - Add icons for the ventilation levels, fan speeds, filter values and end
   times.
+- Start and stop a room's boost and set its duration, set the runtime of
+  level 1 per hour and the summer ventilation role of a unit, and show its
+  bath function, automatic operation sensors and error log, as on the unit's
+  page in the official app (ComfoSpot 50).
 
 ### Changed
 
@@ -33,6 +37,10 @@ project follows [Semantic Versioning](https://semver.org/).
 - Report the filter runtime, remaining runtime and maintenance interval in
   days instead of hours; the unit counts days (for example a 90-day
   interval).
+- Show only the active fault codes on the fault sensor; the unit's error log
+  is history and now has its own sensor.
+- Read the slowly changing unit settings with the filter values instead of on
+  every poll, and skip a request the unit rejects until the next reload.
 
 ## [0.3.3] - 2026-11-20
 

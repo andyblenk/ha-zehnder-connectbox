@@ -28,15 +28,26 @@ from .models import (
     VersionInfo,
 )
 from .profiles import (
+    BOOST_DURATION_MAXIMUM,
+    BOOST_DURATION_MINIMUM,
+    BOOST_DURATION_STEP,
+    LEVEL_ONE_RUNTIME,
+    LEVEL_ONE_RUNTIME_VALUES,
+    SUMMER_VENTILATION_ROLE,
+    SUMMER_VENTILATION_ROLES,
     PropertySpec,
+    error_hours_property_specs_for_device,
     fan_state_property_specs_for_device,
     is_supported,
     optional_property_specs_for_device,
     property_specs_for_device,
+    settings_property_specs_for_device,
+    supports_boost,
     supports_sensor_mode,
     supports_summer_ventilation,
 )
 from .protocol import (
+    ROOM_BOOST_DURATION,
     OperationType,
     PropertySequenceCommand,
     ProtocolError,
@@ -49,7 +60,9 @@ from .protocol import (
     encode_pairing,
     encode_property_request,
     encode_property_update,
+    encode_room_boost,
     encode_room_level,
+    encode_room_number_update,
     encode_run_state,
     encode_summer_ventilation_settings,
 )
@@ -63,6 +76,17 @@ LEVEL_SETTLE_POLL_INTERVAL = 0.5
 SUMMER_SETTLE_TIMEOUT = 8.0
 SUMMER_SETTLE_POLL_INTERVAL = 0.5
 COMMAND_SETTLE_TIMEOUT = 10.0
+# A started boost may end this many seconds later than the room's duration
+# allows (clock differences) before it is stopped again as unexpected.
+BOOST_END_TOLERANCE = 300
+# Slow sequences read with the filter refresh, each in its own sequence after
+# the optional settings, so a unit that rejects one keeps its other telemetry.
+SLOW_PROPERTY_SEQUENCES: dict[
+    str, Callable[[AttachedDevice], tuple[PropertySpec, ...]]
+] = {
+    "settings": settings_property_specs_for_device,
+    "error_hours": error_hours_property_specs_for_device,
+}
 # The app's manual mode offers the situations at home and away. The run-state
 # update carries them as the user location next to the run mode.
 SITUATION_LOCATIONS = {
@@ -101,6 +125,10 @@ class ConnectBoxClient:
         self._fully_requested_devices: set[tuple[int, int, int | None]] = set()
         self._rejected_optional_devices: set[tuple[int, int, int | None]] = set()
         self._rejected_fan_state_devices: set[tuple[int, int, int | None]] = set()
+        # Units that rejected one of the slow sequences, per sequence.
+        self._rejected_slow_devices: dict[str, set[tuple[int, int, int | None]]] = {
+            name: set() for name in SLOW_PROPERTY_SEQUENCES
+        }
 
     @classmethod
     def pair(
@@ -525,6 +553,225 @@ class ConnectBoxClient:
             self.close()
             raise
 
+    def set_summer_ventilation_role(
+        self, device_id: int, property_key: PropertyKey, role: int
+    ) -> GatewaySnapshot:
+        """Write a unit's summer ventilation role and read it back.
+
+        The official app sets the role on the unit's settings page; the value
+        written from here showed there. It is refused while a summer interval
+        runs.
+        """
+        if property_key.value_identity != SUMMER_VENTILATION_ROLE.key:
+            raise ValueError("unexpected summer-role property")
+        if role not in SUMMER_VENTILATION_ROLES:
+            raise CommandValidationError("invalid_summer_role")
+        return self._write_optional_setting(
+            device_id,
+            property_key,
+            bytes((role,)),
+            unsupported_key="summer_role_unsupported",
+            check_run_state=lambda run_state: (
+                "summer_role_interval_active" if run_state.summer_ventilation else None
+            ),
+            label="summer ventilation role",
+        )
+
+    def set_level_one_runtime(
+        self, device_id: int, property_key: PropertyKey, minutes: int
+    ) -> GatewaySnapshot:
+        """Write a unit's runtime of level 1 per hour and read it back."""
+        if property_key.value_identity != LEVEL_ONE_RUNTIME.key:
+            raise ValueError("unexpected level-one runtime property")
+        if (
+            isinstance(minutes, bool)
+            or not isinstance(minutes, int)
+            or minutes not in LEVEL_ONE_RUNTIME_VALUES
+        ):
+            raise CommandValidationError("invalid_level_one_runtime")
+        return self._write_optional_setting(
+            device_id,
+            property_key,
+            bytes((minutes,)),
+            unsupported_key="level_one_runtime_unsupported",
+            label="level-one runtime",
+        )
+
+    def _write_optional_setting(
+        self,
+        device_id: int,
+        property_key: PropertyKey,
+        expected: bytes,
+        *,
+        unsupported_key: str,
+        label: str,
+        check_run_state: Callable[[RunState], str | None] | None = None,
+    ) -> GatewaySnapshot:
+        """Write one setting of the optional sequence (38.0.9-11) and read it back.
+
+        The setting is written like the filter runtime, as one device-property
+        write with the key the gateway reported, and then requested again in
+        its verified read sequence until the unit reports the written value.
+        """
+        try:
+            if check_run_state is not None:
+                refusal = check_run_state(self._read_run_state())
+                if refusal is not None:
+                    raise CommandValidationError(refusal)
+            device = next(
+                (
+                    item
+                    for room in self._read_rooms()
+                    for item in room.devices
+                    if item.device_id == device_id
+                ),
+                None,
+            )
+            if device is None:
+                raise CommandValidationError("device_unavailable")
+            if not optional_property_specs_for_device(device):
+                raise CommandValidationError(unsupported_key)
+            if property_key.product_type != device.product_type:
+                raise ProtocolError(f"{label} property does not match the device")
+
+            self._connected_session().request(
+                OperationType.SET_DEVICE_PROPERTIES_REQUEST,
+                OperationType.SET_DEVICE_PROPERTIES_CONFIRM,
+                encode_property_update(device_id, property_key, expected),
+            )
+            self._request_properties(device, optional_property_specs_for_device(device))
+            identity = property_key.value_identity
+            deadline = time.monotonic() + COMMAND_SETTLE_TIMEOUT
+            while True:
+                rooms = self._read_rooms()
+                current = next(
+                    (
+                        item
+                        for room in rooms
+                        for item in room.devices
+                        if item.device_id == device_id
+                    ),
+                    None,
+                )
+                if current is not None and current.property_bytes(identity) == expected:
+                    # Keep the read-back value for the following snapshots.
+                    self._remember_device_properties(
+                        self._restore_device_properties(rooms)
+                    )
+                    break
+                if time.monotonic() >= deadline:
+                    raise ProtocolError(f"gateway did not report the written {label}")
+                time.sleep(LEVEL_SETTLE_POLL_INTERVAL)
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_boost_duration(self, room_id: int, minutes: int) -> GatewaySnapshot:
+        """Write a room's boost duration and read it back.
+
+        The room is written back as read with only its boost duration
+        (field 22) changed; the app showed the written value on the room's
+        settings page. The app offers 15 to 120 minutes in steps of 15.
+        """
+        if (
+            isinstance(minutes, bool)
+            or not isinstance(minutes, int)
+            or not BOOST_DURATION_MINIMUM <= minutes <= BOOST_DURATION_MAXIMUM
+            or minutes % BOOST_DURATION_STEP
+        ):
+            raise CommandValidationError("invalid_boost_duration")
+        try:
+            room = self._boost_room(room_id)
+            if room.boost_active(time.time()):
+                raise CommandValidationError("boost_active")
+            self._connected_session().request(
+                OperationType.SET_ROOM_REQUEST,
+                OperationType.SET_ROOM_CONFIRM,
+                encode_room_number_update(room, {ROOM_BOOST_DURATION: minutes}),
+            )
+            written = self._wait_for(
+                lambda: self._find_room(room_id),
+                lambda item: item is None or item.boost_duration == minutes,
+            )
+            if written is None or written.boost_duration != minutes:
+                raise ProtocolError("gateway did not report the written boost duration")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def set_boost(self, room_id: int, active: bool) -> GatewaySnapshot:
+        """Start a boost for the room's duration or stop it, as the app does.
+
+        The app sends a room-value update with field 15 set to the end of the
+        boost as Unix time, or to 0 to end it early. The write is confirmed by
+        the end the room reports afterwards (room field 18). A reported end
+        later than the duration allows is stopped again and reported.
+        """
+        try:
+            run_state = self._read_run_state()
+            room = self._boost_room(room_id)
+            now = time.time()
+            if room.boost_active(now) is active:
+                return self.read_snapshot(refresh_properties=False)
+            if active:
+                if run_state.run_mode not in (RunMode.AUTOMATIC, RunMode.MANUAL):
+                    raise CommandValidationError("boost_mode_unavailable")
+                duration = room.boost_duration
+                if (
+                    duration is None
+                    or not BOOST_DURATION_MINIMUM <= duration <= BOOST_DURATION_MAXIMUM
+                ):
+                    raise CommandValidationError("boost_duration_unavailable")
+                until = int(now) + duration * 60
+            else:
+                until = 0
+
+            session = self._connected_session()
+            session.request(
+                OperationType.SET_ROOM_VALUE_REQUEST,
+                OperationType.SET_ROOM_VALUE_CONFIRM,
+                encode_room_boost(room_id, until),
+            )
+            written = self._wait_for(
+                lambda: self._find_room(room_id),
+                lambda item: item is None or item.boost_active(time.time()) is active,
+            )
+            if written is None or written.boost_active(time.time()) is not active:
+                raise ProtocolError(
+                    "gateway did not start the boost"
+                    if active
+                    else "gateway did not stop the boost"
+                )
+            if active and (written.boost_until or 0) > until + BOOST_END_TOLERANCE:
+                # Do not leave a boost running longer than the room allows.
+                session.request(
+                    OperationType.SET_ROOM_VALUE_REQUEST,
+                    OperationType.SET_ROOM_VALUE_CONFIRM,
+                    encode_room_boost(room_id, 0),
+                )
+                raise ProtocolError("gateway reported an unexpected boost end")
+            return self.read_snapshot(refresh_properties=False)
+        except (ProtocolError, TransportError):
+            self.close()
+            raise
+
+    def _find_room(self, room_id: int) -> Room | None:
+        """Read the rooms and return one of them."""
+        return next(
+            (item for item in self._read_rooms() if item.room_id == room_id), None
+        )
+
+    def _boost_room(self, room_id: int) -> Room:
+        """Return a room whose unit offers the boost."""
+        room = self._find_room(room_id)
+        if room is None:
+            raise CommandValidationError("room_unavailable")
+        if not any(supports_boost(room, device) for device in room.devices):
+            raise CommandValidationError("boost_unsupported")
+        return room
+
     def close(self) -> None:
         """Close the shared transport."""
         if self._transport is not None:
@@ -594,6 +841,9 @@ class ConnectBoxClient:
         try:
             fan_state_devices: list[AttachedDevice] = []
             optional_devices: list[AttachedDevice] = []
+            slow_devices: dict[str, list[AttachedDevice]] = {
+                name: [] for name in SLOW_PROPERTY_SEQUENCES
+            }
             for device in devices:
                 device_key = self._property_cache_key(device)
                 request_filter_properties = (
@@ -618,6 +868,12 @@ class ConnectBoxClient:
                     and optional_property_specs_for_device(device)
                 ):
                     optional_devices.append(device)
+                if request_filter_properties and not expected_property_values:
+                    for name, specs_for in SLOW_PROPERTY_SEQUENCES.items():
+                        if device_key not in self._rejected_slow_devices[
+                            name
+                        ] and specs_for(device):
+                            slow_devices[name].append(device)
                 if request_filter_properties:
                     self._fully_requested_devices.add(device_key)
 
@@ -652,9 +908,21 @@ class ConnectBoxClient:
                     )
                     self.close()
                     return core_rooms
+            for name, specs_for in SLOW_PROPERTY_SEQUENCES.items():
+                for device in slow_devices[name]:
+                    try:
+                        self._request_properties(device, specs_for(device))
+                    except GatewayResponseError:
+                        # As above: skip this sequence for the unit until the
+                        # integration is reloaded.
+                        self._rejected_slow_devices[name].add(
+                            self._property_cache_key(device)
+                        )
+                        self.close()
+                        return core_rooms
 
             if not expected_property_values:
-                if fan_state_devices or optional_devices:
+                if fan_state_devices or optional_devices or any(slow_devices.values()):
                     return self._read_rooms()
                 return core_rooms
 
@@ -729,6 +997,8 @@ class ConnectBoxClient:
         self._fully_requested_devices.intersection_update(connected)
         self._rejected_optional_devices.intersection_update(connected)
         self._rejected_fan_state_devices.intersection_update(connected)
+        for rejected in self._rejected_slow_devices.values():
+            rejected.intersection_update(connected)
         for room in rooms:
             for device in room.devices:
                 usable = tuple(value for value in device.properties if value.value)

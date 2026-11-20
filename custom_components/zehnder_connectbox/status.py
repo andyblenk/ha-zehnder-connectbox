@@ -7,12 +7,7 @@ from __future__ import annotations
 
 from .const import SENSOR_MODE_LEVEL
 from .models import AttachedDevice, Room, RunMode, RunState, TemperatureMode
-from .profiles import (
-    ERROR_CODE_1,
-    ERROR_CODE_2,
-    ERROR_CODE_3,
-    summer_ventilation_role,
-)
+from .profiles import summer_ventilation_role
 
 STATUS_OFF = "off"
 STATUS_STANDBY = "standby"
@@ -78,10 +73,13 @@ def situation(run_state: RunState) -> str | None:
 
 
 def error_codes(device: AttachedDevice) -> list[int]:
-    """Return all active fault codes reported by the unit, without duplicates."""
-    codes = [code for code in device.errors if code != 0]
-    for spec in (ERROR_CODE_1, ERROR_CODE_2, ERROR_CODE_3):
-        value = spec.value(device)
-        if value and value not in codes:
-            codes.append(value)
+    """Return the active fault codes the gateway reports, without duplicates.
+
+    The unit's error log (class 37) is history and not included; see
+    profiles.error_log.
+    """
+    codes: list[int] = []
+    for code in device.errors:
+        if code != 0 and code not in codes:
+            codes.append(code)
     return codes

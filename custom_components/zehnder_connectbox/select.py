@@ -14,7 +14,13 @@ from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID, DOMAIN, SENSOR_MODE_LEVEL
 from .entity import ConnectBoxDeviceEntity, ConnectBoxGatewayEntity
 from .models import RunMode, TemperatureMode
-from .profiles import is_supported, supports_sensor_mode
+from .profiles import (
+    SUMMER_VENTILATION_ROLE_VALUES,
+    is_supported,
+    summer_ventilation_role,
+    summer_ventilation_role_key,
+    supports_sensor_mode,
+)
 
 MODE_TO_OPTION = {
     RunMode.AUTOMATIC: "automatic",
@@ -65,17 +71,26 @@ async def async_setup_entry(
         [ConnectBoxOperatingMode(coordinator), ConnectBoxSituation(coordinator)]
     )
     known: set[tuple[int, int]] = set()
+    known_roles: set[int] = set()
 
     @callback
     def add_new_entities() -> None:
         if coordinator.data is None:
             return
-        new_entities: list[ConnectBoxSituationLevel] = []
+        new_entities: list[SelectEntity] = []
         for room in coordinator.data.rooms:
             modes = {value.temperature_mode for value in room.ventilation}
             for device in room.devices:
                 if not is_supported(device):
                     continue
+                if (
+                    device.device_id not in known_roles
+                    and summer_ventilation_role_key(device) is not None
+                ):
+                    new_entities.append(
+                        ConnectBoxSummerVentilationRole(coordinator, device.device_id)
+                    )
+                    known_roles.add(device.device_id)
                 for mode in SITUATIONS:
                     identity = (device.device_id, int(mode))
                     if identity in known or int(mode) not in modes:
@@ -217,4 +232,44 @@ class ConnectBoxSituationLevel(ConnectBoxDeviceEntity, SelectEntity):
             return
         await self.coordinator.async_set_level(
             data[0].room_id, OPTION_TO_LEVEL[option], self._mode
+        )
+
+
+class ConnectBoxSummerVentilationRole(ConnectBoxDeviceEntity, SelectEntity):
+    """Role of the unit in the summer ventilation, as set in the app.
+
+    The app offers supply and exhaust (the unit takes no part), supply, or
+    exhaust on the unit's settings page. The role cannot be changed while a
+    summer ventilation interval runs.
+    """
+
+    _attr_translation_key = "summer_ventilation_role"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_options: ClassVar[list[str]] = list(SUMMER_VENTILATION_ROLE_VALUES)
+
+    def __init__(self, coordinator, device_id: int) -> None:
+        super().__init__(coordinator, device_id)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_{device_id}_summer_ventilation_role"
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the role reported by the unit."""
+        data = self.device_data
+        return summer_ventilation_role(data[1]) if data is not None else None
+
+    @property
+    def available(self) -> bool:
+        """Only allow a change while the unit reports its role."""
+        if not super().available:
+            return False
+        data = self.device_data
+        return data is not None and summer_ventilation_role_key(data[1]) is not None
+
+    async def async_select_option(self, option: str) -> None:
+        """Write the role and read it back from the unit."""
+        if option == self.current_option:
+            return
+        await self.coordinator.async_set_summer_ventilation_role(
+            self.device_id, SUMMER_VENTILATION_ROLE_VALUES[option]
         )

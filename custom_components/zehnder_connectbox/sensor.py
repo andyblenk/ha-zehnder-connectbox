@@ -24,9 +24,18 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID
-from .entity import ConnectBoxDeviceEntity, supported_device_ids
-from .models import AttachedDevice, Room
+from .entity import (
+    ConnectBoxDeviceEntity,
+    supported_device_ids,
+)
+from .models import (
+    AttachedDevice,
+    Room,
+)
 from .profiles import (
+    AUTOMATIC_SENSOR_STATES,
+    BATH_FUNCTION_STATES,
+    ERROR_CODE_SPECS,
     EXHAUST_FAN_SPEED,
     EXTRACT_AIR_SENSOR_STATUS,
     EXTRACT_AIR_TEMPERATURE,
@@ -39,12 +48,20 @@ from .profiles import (
     SENSOR_TYPE_HUMIDITY,
     SUMMER_VENTILATION_ROLES,
     SUPPLY_FAN_SPEED,
+    automatic_sensors,
+    bath_function,
     board_reading,
+    error_log,
     summer_ventilation_role,
     supply_only_operation,
     temperature_value,
 )
-from .status import FAN_STATUS_OPTIONS, error_codes, fan_status, situation
+from .status import (
+    FAN_STATUS_OPTIONS,
+    error_codes,
+    fan_status,
+    situation,
+)
 
 try:
     from homeassistant.const import UnitOfRatio
@@ -67,6 +84,8 @@ class ConnectBoxSensorDescription(SensorEntityDescription):
     room_value_fn: Callable[[Room], int | float | str | datetime | None] | None = None
     # Keep the entity available while no value is reported (state unknown).
     available_without_value: bool = False
+    # Extra attributes from the unit.
+    attributes_fn: Callable[[AttachedDevice], dict[str, object]] | None = None
 
 
 def _temporary_until(room: Room) -> datetime | None:
@@ -205,6 +224,35 @@ SENSORS = (
         ),
     ),
     ConnectBoxSensorDescription(
+        key="bath_function",
+        translation_key="bath_function",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(BATH_FUNCTION_STATES.values()),
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=bath_function,
+        exists_fn=lambda device: bath_function(device) is not None,
+    ),
+    ConnectBoxSensorDescription(
+        key="automatic_sensors",
+        translation_key="automatic_sensors",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(AUTOMATIC_SENSOR_STATES.values()),
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=automatic_sensors,
+        exists_fn=lambda device: automatic_sensors(device) is not None,
+    ),
+    ConnectBoxSensorDescription(
+        key="error_log",
+        translation_key="error_log",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda device: len(error_log(device)),
+        exists_fn=lambda device: any(
+            device.property_bytes(spec.key) for spec in ERROR_CODE_SPECS
+        ),
+        attributes_fn=lambda device: {"entries": error_log(device)},
+    ),
+    ConnectBoxSensorDescription(
         key="signal_strength",
         translation_key="signal_strength",
         native_unit_of_measurement=PERCENTAGE,
@@ -288,6 +336,14 @@ class ConnectBoxSensor(ConnectBoxDeviceEntity, SensorEntity):
         if self.entity_description.available_without_value:
             return True
         return self.native_value is not None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """Return extra attributes of the unit, if the description has any."""
+        if self.entity_description.attributes_fn is None:
+            return None
+        data = self.device_data
+        return self.entity_description.attributes_fn(data[1]) if data else None
 
 
 class ConnectBoxFanStatusSensor(ConnectBoxDeviceEntity, SensorEntity):
