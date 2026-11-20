@@ -99,7 +99,8 @@ class CommandErrorTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_disabled_summer_mode_is_readable_and_never_written(self):
         await self.assert_translated(
-            ServiceValidationError, "summer_disabled",
+            ServiceValidationError,
+            "summer_disabled",
             self.coordinator.async_set_summer_ventilation(True),
         )
         self.session.request.assert_not_called()
@@ -110,14 +111,16 @@ class CommandErrorTests(unittest.IsolatedAsyncioTestCase):
         )
         self.client._read_run_state.return_value = replace(self.state, run_mode=3)
         await self.assert_translated(
-            ServiceValidationError, "summer_mode_unavailable",
+            ServiceValidationError,
+            "summer_mode_unavailable",
             self.coordinator.async_set_summer_ventilation(True),
         )
         self.client._read_run_state.return_value = replace(
             self.state, summer_ventilation=True
         )
         await self.assert_translated(
-            ServiceValidationError, "summer_running",
+            ServiceValidationError,
+            "summer_running",
             self.coordinator.async_set_summer_configuration(duration_hours=5),
         )
         self.session.request.assert_not_called()
@@ -126,18 +129,21 @@ class CommandErrorTests(unittest.IsolatedAsyncioTestCase):
         for level, key in ((5, "sensor_board_unavailable"), (9, "invalid_level")):
             with self.subTest(level=level):
                 await self.assert_translated(
-                    ServiceValidationError, key,
+                    ServiceValidationError,
+                    key,
                     self.coordinator.async_set_level(1, level),
                 )
         self.session.request.assert_not_called()
 
     async def test_missing_device_and_filter_runtime_are_readable(self):
         for device_id, key in (
-            (99, "device_unavailable"), (7, "filter_runtime_unavailable")
+            (99, "device_unavailable"),
+            (7, "filter_runtime_unavailable"),
         ):
             with self.subTest(device_id=device_id):
                 await self.assert_translated(
-                    ServiceValidationError, key,
+                    ServiceValidationError,
+                    key,
                     self.coordinator.async_reset_filter_timer(device_id),
                 )
         self.session.request.assert_not_called()
@@ -164,7 +170,8 @@ class CommandErrorTests(unittest.IsolatedAsyncioTestCase):
         )
         with patch.object(ConfigEntry, "async_start_reauth") as reauth:
             await self.assert_translated(
-                HomeAssistantError, "certificate_changed",
+                HomeAssistantError,
+                "certificate_changed",
                 self.coordinator.async_set_mode(2),
             )
             reauth.assert_called_once_with(self.hass)
@@ -178,11 +185,13 @@ class CommandErrorTests(unittest.IsolatedAsyncioTestCase):
         select = ConnectBoxSituation(self.coordinator)
         number = ConnectBoxSummerVentilationDuration(self.coordinator)
         await self.assert_translated(
-            ServiceValidationError, "situation_not_selectable",
+            ServiceValidationError,
+            "situation_not_selectable",
             select.async_select_option("asleep"),
         )
         await self.assert_translated(
-            ServiceValidationError, "invalid_summer_duration",
+            ServiceValidationError,
+            "invalid_summer_duration",
             number.async_set_native_value(1.5),
         )
 

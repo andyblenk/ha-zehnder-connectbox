@@ -29,8 +29,8 @@ from .models import (
 )
 from .profiles import (
     PropertySpec,
-    is_supported,
     fan_state_property_specs_for_device,
+    is_supported,
     optional_property_specs_for_device,
     property_specs_for_device,
     supports_sensor_mode,
@@ -174,9 +174,7 @@ class ConnectBoxClient:
         *,
         refresh_properties: bool,
         refresh_filter_properties: bool = False,
-        expected_property_values: dict[
-            tuple[int, tuple[int, int, int]], bytes
-        ]
+        expected_property_values: dict[tuple[int, tuple[int, int, int]], bytes]
         | None = None,
     ) -> GatewaySnapshot:
         """Read a complete state snapshot from the gateway."""
@@ -269,7 +267,9 @@ class ConnectBoxClient:
                     after.run_mode != before.run_mode
                     or after.temperature_mode != before.temperature_mode
                 ):
-                    raise ProtocolError("run mode or situation changed during summer ventilation")
+                    raise ProtocolError(
+                        "run mode or situation changed during summer ventilation"
+                    )
                 confirmed = (
                     after.summer_ventilation_running(time.time()) is True
                     if enabled
@@ -402,8 +402,10 @@ class ConnectBoxClient:
             )
             run_state = self._wait_for(
                 self._read_run_state,
-                lambda state: state.run_mode == RunMode.MANUAL
-                and state.temperature_mode == temperature_mode,
+                lambda state: (
+                    state.run_mode == RunMode.MANUAL
+                    and state.temperature_mode == temperature_mode
+                ),
             )
             if (
                 run_state.run_mode != RunMode.MANUAL
@@ -580,9 +582,7 @@ class ConnectBoxClient:
         rooms: tuple[Room, ...],
         *,
         include_filter_properties: bool,
-        expected_property_values: dict[
-            tuple[int, tuple[int, int, int]], bytes
-        ]
+        expected_property_values: dict[tuple[int, tuple[int, int, int]], bytes]
         | None = None,
     ) -> tuple[Room, ...]:
         devices = [
@@ -743,9 +743,7 @@ class ConnectBoxClient:
             for device in room.devices:
                 cached = self._property_cache.get(self._property_cache_key(device))
                 if cached is not None:
-                    merged = {
-                        value.key.value_identity: value for value in cached
-                    }
+                    merged = {value.key.value_identity: value for value in cached}
                     for value in device.properties:
                         identity = value.key.value_identity
                         # A property read may temporarily expose an empty value.

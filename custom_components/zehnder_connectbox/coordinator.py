@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import random
 import time
@@ -37,7 +38,22 @@ from .session import GatewayResponseError
 from .transport import CertificateMismatchError, TransportError
 
 _LOGGER = logging.getLogger(__name__)
+_SUPPORTS_VIA_DEVICE_ID = (
+    "via_device_id"
+    in inspect.signature(dr.DeviceRegistry.async_get_or_create).parameters
+)
 MAX_RETRY_INTERVAL = 300
+
+
+def _via_gateway(gateway_uuid: str, gateway_device_id: str) -> dict[str, object]:
+    """Link a unit to the ConnectBox in the way this Home Assistant supports.
+
+    Newer versions take the device ID and deprecate the identifier tuple,
+    which is removed in 2027.8; older versions only know the tuple.
+    """
+    if _SUPPORTS_VIA_DEVICE_ID:
+        return {"via_device_id": gateway_device_id}
+    return {"via_device": (DOMAIN, gateway_uuid)}
 
 
 class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
@@ -68,8 +84,7 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         now = time.monotonic()
         refresh_properties = (
             self.data is None
-            or now - self._last_property_refresh
-            >= PROPERTY_REFRESH_INTERVAL
+            or now - self._last_property_refresh >= PROPERTY_REFRESH_INTERVAL
         )
         refresh_filter_properties = (
             self.data is None
@@ -265,5 +280,5 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
                     ),
                     sw_version=format_version(device.software_version),
                     suggested_area=room.name,
-                    via_device_id=gateway_device.id,
+                    **_via_gateway(gateway_uuid, gateway_device.id),
                 )

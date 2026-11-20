@@ -111,7 +111,8 @@ class SensorProfileTests(unittest.TestCase):
                     room,
                     target_level=2 if configured else 5,
                     ventilation=(VentilationValue(0, 2), VentilationValue(1, 5))
-                    if configured else room.ventilation,
+                    if configured
+                    else room.ventilation,
                 )
                 self.assertTrue(supports_sensor_mode(active, active.devices[0]))
 
@@ -146,9 +147,7 @@ class SensorProfileTests(unittest.TestCase):
         for variant in (1, 2):
             with self.subTest(variant=variant):
                 room = make_room(variant, readings=())
-                status = PropertyValue(
-                    HUMIDITY_SENSOR_STATUS.request_key(30), b"\x00"
-                )
+                status = PropertyValue(HUMIDITY_SENSOR_STATUS.request_key(30), b"\x00")
                 device = replace(room.devices[0], properties=(status,))
                 self.assertEqual(supports_sensor_mode(room, device), variant == 1)
 
@@ -199,7 +198,7 @@ class SensorEntityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(fan.preset_mode, "auto")
         self.assertIsNone(fan.percentage)
         coordinator.data = replace(coordinator.data, rooms=(room,))
-        self.assertEqual(fan.preset_mode, "Level 2")
+        self.assertEqual(fan.preset_mode, "level_2")
         self.assertEqual(fan.percentage, 50)
         coordinator.data = replace(coordinator.data, rooms=(make_room(readings=()),))
         self.assertNotIn("auto", fan.preset_modes)

@@ -108,11 +108,7 @@ def supports_sensor_status(device: AttachedDevice) -> bool:
 
 def supports_summer_ventilation(rooms: tuple[Room, ...]) -> bool:
     """Permit a global write only when every attached unit is validated."""
-    devices = [
-        device
-        for room in rooms
-        for device in room.devices
-    ]
+    devices = [device for room in rooms for device in room.devices]
     return bool(devices) and all(
         device.summer_ventilation_available is True
         and device.product_type == SUPPORTED_PRODUCT_TYPE
