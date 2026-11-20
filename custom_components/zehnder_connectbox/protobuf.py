@@ -114,6 +114,16 @@ def _decode_varint(message: bytes, offset: int) -> tuple[int, int]:
     raise ProtobufDecodeError("varint is longer than 10 bytes")
 
 
+def decode_packed_uints(value: bytes) -> tuple[int, ...]:
+    """Decode a packed repeated field of varints."""
+    values: list[int] = []
+    offset = 0
+    while offset < len(value):
+        item, offset = _decode_varint(value, offset)
+        values.append(item)
+    return tuple(values)
+
+
 def uint_value(fields: tuple[Field, ...], number: int) -> int | None:
     """Return the first varint value for a field number."""
     for field in fields:

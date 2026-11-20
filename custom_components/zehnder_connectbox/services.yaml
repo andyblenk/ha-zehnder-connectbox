@@ -1,0 +1,69 @@
+save_day_plan:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: zehnder_connectbox
+    plan:
+      example: "Wintertagesplan"
+      selector:
+        text:
+    name:
+      example: "Homeoffice"
+      selector:
+        text:
+    slots:
+      example: >-
+        [{"start": "00:00", "situation": "asleep"},
+         {"start": "07:00", "situation": "awake"},
+         {"start": "22:30", "situation": "asleep"}]
+      selector:
+        object:
+    functions:
+      example: >-
+        [{"start": "07:00", "function": "boost", "duration_minutes": 20,
+          "room": "Büro"}]
+      selector:
+        object:
+remove_day_plan:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: zehnder_connectbox
+    plan:
+      required: true
+      example: "Homeoffice"
+      selector:
+        text:
+save_week_plan:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: zehnder_connectbox
+    plan:
+      example: "Winterwochenplan"
+      selector:
+        text:
+    name:
+      example: "Homeoffice-Woche"
+      selector:
+        text:
+    days:
+      example: >-
+        ["Homeoffice", "Homeoffice", "Homeoffice", "Homeoffice", "Homeoffice",
+         "Wintertagesplan", "Wintertagesplan"]
+      selector:
+        object:
+remove_week_plan:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: zehnder_connectbox
+    plan:
+      required: true
+      example: "Homeoffice-Woche"
+      selector:
+        text:

@@ -337,7 +337,8 @@ def _gateway_label(gateway: DiscoveredGateway) -> str:
 
 def _validate_pairing_name(value: str) -> str:
     if not isinstance(value, str):
-        raise ValueError("pairing name must be text")
+        # The form shows any ValueError as an invalid name.
+        raise ValueError("pairing name must be text")  # noqa: TRY004
     name = value.strip()
     if not 1 <= len(name.encode("utf-8")) <= 32:
         raise ValueError("pairing name must contain 1 to 32 UTF-8 bytes")

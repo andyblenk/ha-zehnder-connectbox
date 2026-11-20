@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime
 
 from homeassistant.components.switch import SwitchEntity
@@ -11,9 +12,12 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID
-from .entity import ConnectBoxGatewayEntity
-from .models import GatewaySnapshot, RunMode
-from .profiles import supports_summer_ventilation
+from .entity import ConnectBoxDeviceEntity, ConnectBoxGatewayEntity
+from .models import GatewaySnapshot, RunMode, TemperatureMode
+from .profiles import (
+    supports_boost,
+    supports_summer_ventilation,
+)
 
 
 def _supports_summer_ventilation(snapshot: GatewaySnapshot) -> bool:
@@ -31,7 +35,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up standby and any reported summer ventilation control."""
     coordinator = entry.runtime_data
-    async_add_entities([ConnectBoxVentilationSwitch(coordinator)])
+    async_add_entities(
+        [
+            ConnectBoxVentilationSwitch(coordinator),
+            ConnectBoxPresenceSwitch(coordinator),
+        ]
+    )
     summer_added = False
 
     @callback
@@ -53,6 +62,62 @@ async def async_setup_entry(
 
     add_summer_when_supported()
     entry.async_on_unload(coordinator.async_add_listener(add_summer_when_supported))
+
+    known_boost: set[int] = set()
+
+    @callback
+    def add_boost_switches() -> None:
+        if coordinator.data is None:
+            return
+        new_ids = {
+            device.device_id
+            for room in coordinator.data.rooms
+            for device in room.devices
+            if supports_boost(room, device)
+        } - known_boost
+        if new_ids:
+            async_add_entities(
+                ConnectBoxBoostSwitch(coordinator, device_id)
+                for device_id in sorted(new_ids)
+            )
+            known_boost.update(new_ids)
+
+    add_boost_switches()
+    entry.async_on_unload(coordinator.async_add_listener(add_boost_switches))
+
+    absence_added = False
+
+    @callback
+    def add_absence_switch() -> None:
+        nonlocal absence_added
+        if (
+            absence_added
+            or coordinator.data is None
+            or coordinator.data.run_state.standby_mode is None
+        ):
+            return
+        async_add_entities([ConnectBoxAbsencePlannerSwitch(coordinator)])
+        absence_added = True
+
+    add_absence_switch()
+    entry.async_on_unload(coordinator.async_add_listener(add_absence_switch))
+
+    remote_added = False
+
+    @callback
+    def add_remote_access_switch() -> None:
+        nonlocal remote_added
+        if (
+            remote_added
+            or coordinator.data is None
+            or coordinator.data.remote_access is None
+        ):
+            return
+        async_add_entities([ConnectBoxRemoteAccessSwitch(coordinator)])
+        remote_added = True
+
+    add_remote_access_switch()
+    entry.async_on_unload(coordinator.async_add_listener(add_remote_access_switch))
 
 
 class ConnectBoxVentilationSwitch(ConnectBoxGatewayEntity, SwitchEntity):
@@ -79,6 +144,68 @@ class ConnectBoxVentilationSwitch(ConnectBoxGatewayEntity, SwitchEntity):
     async def async_turn_off(self, **kwargs) -> None:
         """Put all attached ventilation units into standby."""
         await self.coordinator.async_set_power(False)
+
+
+# Run-state field 3 from the app's enumeration.
+SITUATION_SOURCES = {
+    1: "schedule",
+    2: "user",
+    3: "no_schedule",
+    4: "presence_home",
+}
+
+
+class ConnectBoxPresenceSwitch(ConnectBoxGatewayEntity, SwitchEntity):
+    """At home or away while the schedule runs, like the house on the app's
+    start screen.
+
+    On is at home: the schedule's situations apply. Off is away until the
+    switch is turned on again or the schedule switches; the operating mode
+    stays automatic, unlike selecting a situation, which switches to manual.
+    """
+
+    _attr_translation_key = "presence"
+    _attr_icon = "mdi:home-account"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_presence"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return whether the system is at home."""
+        snapshot = self.coordinator.data
+        if snapshot is None:
+            return None
+        return snapshot.run_state.temperature_mode != TemperatureMode.AWAY
+
+    @property
+    def available(self) -> bool:
+        """Only offer the switch while the schedule runs, as in the app."""
+        snapshot = self.coordinator.data
+        return bool(
+            super().available
+            and snapshot is not None
+            and snapshot.run_state.run_mode == RunMode.AUTOMATIC
+            and snapshot.run_state.temperature_mode
+            in (TemperatureMode.AWAKE, TemperatureMode.ASLEEP, TemperatureMode.AWAY)
+        )
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | int | None]:
+        """Show why the current situation applies."""
+        snapshot = self.coordinator.data
+        source = snapshot.run_state.situation_source if snapshot else None
+        return {"source": SITUATION_SOURCES.get(source, source) if source else None}
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Return to at home."""
+        await self.coordinator.async_set_presence(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Switch to away while the schedule keeps running."""
+        await self.coordinator.async_set_presence(False)
 
 
 class ConnectBoxSummerVentilationSwitch(ConnectBoxGatewayEntity, SwitchEntity):
@@ -184,3 +311,149 @@ class ConnectBoxSummerVentilationEnabledSwitch(ConnectBoxGatewayEntity, SwitchEn
     async def async_turn_off(self, **kwargs) -> None:
         """Disable the summer function while preserving its duration."""
         await self.coordinator.async_set_summer_configuration(enabled=False)
+
+
+def _iso(timestamp: int | None) -> str | None:
+    if not timestamp:
+        return None
+    try:
+        return datetime.fromtimestamp(timestamp, UTC).isoformat()
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+class ConnectBoxAbsencePlannerSwitch(ConnectBoxGatewayEntity, SwitchEntity):
+    """The app's absence planner (Abwesenheitsplaner).
+
+    Switched on, the gateway puts the system into frost protection for the
+    period set with the absence start and end; without one, the period starts
+    now and lasts one day, as in the app.
+    """
+
+    _attr_translation_key = "absence_planner"
+    _attr_icon = "mdi:bag-suitcase"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_absence_planner"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return whether the planner is saved for a period."""
+        snapshot = self.coordinator.data
+        return snapshot.run_state.absence_planned if snapshot is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        """Show the period and whether it is running now."""
+        snapshot = self.coordinator.data
+        if snapshot is None:
+            return {}
+        start, end = self.coordinator.absence_period()
+        return {
+            "starts_at": _iso(start),
+            "ends_at": _iso(end),
+            "active": snapshot.run_state.standby,
+        }
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Save the planner for the chosen period."""
+        await self.coordinator.async_set_absence(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Switch the planner off."""
+        await self.coordinator.async_set_absence(False)
+
+
+class ConnectBoxRemoteAccessSwitch(ConnectBoxGatewayEntity, SwitchEntity):
+    """The app's access over the internet (Zugriff über Internet).
+
+    Switched off, the official app only reaches the ConnectBox in the local
+    network. This integration always connects locally.
+    """
+
+    _attr_translation_key = "remote_access"
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:cloud-lock"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_remote_access_switch"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return whether access over the internet is enabled."""
+        snapshot = self.coordinator.data
+        return snapshot.remote_access if snapshot is not None else None
+
+    @property
+    def available(self) -> bool:
+        """Only allow a change while the gateway reports the setting."""
+        return super().available and self.is_on is not None
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable access over the internet."""
+        await self.coordinator.async_set_remote_access(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable access over the internet."""
+        await self.coordinator.async_set_remote_access(False)
+
+
+class ConnectBoxBoostSwitch(ConnectBoxDeviceEntity, SwitchEntity):
+    """Start or stop the boost of the unit's room, like the app's Boost button.
+
+    The state follows the end of the boost the gateway reports, so a boost
+    started in the app or ended by its timer shows as well.
+    """
+
+    _attr_translation_key = "boost"
+    _attr_icon = "mdi:fan-plus"
+
+    def __init__(self, coordinator, device_id: int) -> None:
+        super().__init__(coordinator, device_id)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_{device_id}_boost"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return whether the room reports a running boost."""
+        data = self.device_data
+        return data[0].boost_active(time.time()) if data is not None else None
+
+    @property
+    def available(self) -> bool:
+        """Only offer the boost while the room reports its duration."""
+        if not super().available:
+            return False
+        data = self.device_data
+        return data is not None and supports_boost(*data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, int | str | None]:
+        """Show the room's duration and the reported end of a boost."""
+        data = self.device_data
+        if data is None:
+            return {}
+        room = data[0]
+        ends_at = None
+        if room.boost_until and room.boost_active(time.time()):
+            try:
+                ends_at = datetime.fromtimestamp(room.boost_until, UTC).isoformat()
+            except (OverflowError, OSError, ValueError):
+                ends_at = None
+        return {"duration_minutes": room.boost_duration, "ends_at": ends_at}
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Start a boost for the room's configured duration."""
+        data = self.device_data
+        if data is not None:
+            await self.coordinator.async_set_boost(data[0].room_id, True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """End the room's running boost early."""
+        data = self.device_data
+        if data is not None:
+            await self.coordinator.async_set_boost(data[0].room_id, False)

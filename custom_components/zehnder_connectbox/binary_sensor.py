@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from homeassistant.components.binary_sensor import (
@@ -15,7 +16,12 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID
-from .entity import ConnectBoxDeviceEntity, supported_device_ids
+from .entity import (
+    ConnectBoxDeviceEntity,
+    ConnectBoxGatewayEntity,
+    supported_device_ids,
+)
+from .models import GatewaySnapshot
 from .profiles import (
     CO2_SENSOR_STATUS,
     EXHAUST_FAN_ENABLED,
@@ -29,6 +35,7 @@ from .profiles import (
     supply_only_operation,
     supports_sensor_status,
 )
+from .status import error_codes
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -91,6 +98,24 @@ BINARY_SENSORS = (
 )
 
 
+@dataclass(frozen=True, kw_only=True)
+class ConnectBoxGatewayBinarySensorDescription(BinarySensorEntityDescription):
+    """Describe a gateway-wide indicator."""
+
+    value_fn: Callable[[GatewaySnapshot], bool | None]
+
+
+GATEWAY_BINARY_SENSORS = (
+    # The run state's standbyModeActive: the absence planner's period runs.
+    ConnectBoxGatewayBinarySensorDescription(
+        key="absence_active",
+        translation_key="absence_active",
+        icon="mdi:bag-suitcase",
+        value_fn=lambda snapshot: snapshot.run_state.standby,
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ZehnderConnectBoxConfigEntry,
@@ -99,9 +124,23 @@ async def async_setup_entry(
     """Set up binary sensors and add attached devices dynamically."""
     coordinator = entry.runtime_data
     known: set[int] = set()
+    known_gateway: set[str] = set()
 
     @callback
     def add_new_entities() -> None:
+        if coordinator.data is not None:
+            new_gateway = [
+                description
+                for description in GATEWAY_BINARY_SENSORS
+                if description.key not in known_gateway
+                and description.value_fn(coordinator.data) is not None
+            ]
+            if new_gateway:
+                async_add_entities(
+                    ConnectBoxGatewayBinarySensor(coordinator, description)
+                    for description in new_gateway
+                )
+                known_gateway.update(description.key for description in new_gateway)
         new_ids = supported_device_ids(coordinator) - known
         if new_ids:
             status_ids = {
@@ -149,6 +188,16 @@ class ConnectBoxBinarySensor(ConnectBoxDeviceEntity, BinarySensorEntity):
         return has_fault(device)
 
     @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """List the active fault codes on the fault indicator."""
+        if self.entity_description.kind != "fault":
+            return None
+        data = self.device_data
+        if data is None:
+            return None
+        return {"error_codes": error_codes(data[1])}
+
+    @property
     def available(self) -> bool:
         """Keep missing or unrecognized status values unavailable."""
         if not super().available:
@@ -159,3 +208,26 @@ class ConnectBoxBinarySensor(ConnectBoxDeviceEntity, BinarySensorEntity):
         ):
             return self.is_on is not None
         return True
+
+
+class ConnectBoxGatewayBinarySensor(ConnectBoxGatewayEntity, BinarySensorEntity):
+    """One gateway-wide indicator."""
+
+    entity_description: ConnectBoxGatewayBinarySensorDescription
+
+    def __init__(self, coordinator, description) -> None:
+        super().__init__(coordinator)
+        self.entity_description = description
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_{description.key}"
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return the reported state."""
+        snapshot = self.coordinator.data
+        return self.entity_description.value_fn(snapshot) if snapshot else None
+
+    @property
+    def available(self) -> bool:
+        """Report unavailable while the gateway does not report the value."""
+        return super().available and self.is_on is not None

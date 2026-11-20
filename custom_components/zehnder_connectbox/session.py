@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from uuid import UUID
 
@@ -30,13 +31,21 @@ class ConnectBoxSession:
     """A single blocking request session."""
 
     def __init__(
-        self, transport: ConnectBoxTransport, gateway_uuid: UUID, app_uuid: UUID
+        self,
+        transport: ConnectBoxTransport,
+        gateway_uuid: UUID,
+        app_uuid: UUID,
+        *,
+        on_unsolicited: Callable[[Operation, bytes], None] | None = None,
     ) -> None:
         self._transport = transport
         self._gateway_uuid = gateway_uuid
         self._app_uuid = app_uuid
         self._reference = 0
         self._buffer = b""
+        # Told about frames that answer no request, such as the changes of
+        # other clients the gateway forwards.
+        self._on_unsolicited = on_unsolicited
 
     def request(
         self,
@@ -47,6 +56,19 @@ class ConnectBoxSession:
         timeout: float = 8.0,
     ) -> Response:
         """Send a request and wait for its matching confirmation."""
+        response = self.exchange(request_type, body, timeout=timeout)
+        if response.operation.type != confirmation_type:
+            raise ProtocolError("gateway returned an unexpected confirmation")
+        if response.operation.result not in (None, 0):
+            raise GatewayResponseError(
+                response.operation.result, response.operation.description
+            )
+        return response
+
+    def exchange(
+        self, request_type: int, body: bytes = b"", *, timeout: float = 8.0
+    ) -> Response:
+        """Send a request and return the frame that answers it, unchecked."""
         self._reference = self._reference % 0xFFFFFFFF + 1
         reference = self._reference
         operation = Operation(type=request_type, reference=reference)
@@ -70,13 +92,9 @@ class ConnectBoxSession:
             except ProtobufDecodeError as err:
                 raise ProtocolError("invalid operation envelope") from err
             if response_operation.reference != reference:
+                if self._on_unsolicited is not None:
+                    self._on_unsolicited(response_operation, received.body)
                 continue
-            if response_operation.type != confirmation_type:
-                raise ProtocolError("gateway returned an unexpected confirmation")
-            if response_operation.result not in (None, 0):
-                raise GatewayResponseError(
-                    response_operation.result, response_operation.description
-                )
             return Response(response_operation, received.body)
 
     def _read_frame(self) -> Frame:
