@@ -13,7 +13,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID, DOMAIN, SENSOR_MODE_LEVEL
 from .entity import ConnectBoxDeviceEntity, ConnectBoxGatewayEntity
-from .models import RunMode, TemperatureMode
+from .models import RunMode, Schedules, TemperatureMode
 from .profiles import (
     SUMMER_VENTILATION_ROLE_VALUES,
     is_supported,
@@ -72,12 +72,17 @@ async def async_setup_entry(
     )
     known: set[tuple[int, int]] = set()
     known_roles: set[int] = set()
+    week_plan_added = False
 
     @callback
     def add_new_entities() -> None:
+        nonlocal week_plan_added
         if coordinator.data is None:
             return
         new_entities: list[SelectEntity] = []
+        if not week_plan_added and coordinator.data.schedules is not None:
+            new_entities.append(ConnectBoxActiveWeekPlan(coordinator))
+            week_plan_added = True
         for room in coordinator.data.rooms:
             modes = {value.temperature_mode for value in room.ventilation}
             for device in room.devices:
@@ -273,3 +278,75 @@ class ConnectBoxSummerVentilationRole(ConnectBoxDeviceEntity, SelectEntity):
         await self.coordinator.async_set_summer_ventilation_role(
             self.device_id, SUMMER_VENTILATION_ROLE_VALUES[option]
         )
+
+
+def week_plan_options(schedules: Schedules) -> dict[str, int]:
+    """Name each weekly schedule as in the app; add the ID where needed.
+
+    A schedule without a name, or with a name another one shares, is shown
+    with its ID so every option stays unique.
+    """
+    names = [plan.name for plan in schedules.week_plans]
+    options: dict[str, int] = {}
+    for plan in schedules.week_plans:
+        if plan.name and names.count(plan.name) == 1:
+            options[plan.name] = plan.plan_id
+        else:
+            options[f"{plan.name or ''} ({plan.plan_id})".strip()] = plan.plan_id
+    return options
+
+
+class ConnectBoxActiveWeekPlan(ConnectBoxGatewayEntity, SelectEntity):
+    """Select the active weekly schedule, as on the app's plan page.
+
+    The options are the weekly schedules stored on the gateway. The gateway
+    confirmed the change and reported the new schedule and today's daily
+    schedule in its run state.
+    """
+
+    _attr_translation_key = "active_week_plan"
+    _attr_icon = "mdi:calendar-week"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_active_week_plan"
+
+    def _options(self) -> dict[str, int]:
+        snapshot = self.coordinator.data
+        if snapshot is None or snapshot.schedules is None:
+            return {}
+        return week_plan_options(snapshot.schedules)
+
+    @property
+    def options(self) -> list[str]:
+        """Return the stored weekly schedules."""
+        return list(self._options())
+
+    @property
+    def current_option(self) -> str | None:
+        """Return the active weekly schedule."""
+        snapshot = self.coordinator.data
+        if snapshot is None:
+            return None
+        active = snapshot.run_state.week_plan
+        return next(
+            (name for name, plan_id in self._options().items() if plan_id == active),
+            None,
+        )
+
+    @property
+    def available(self) -> bool:
+        """Only offer a change while the schedule list is known."""
+        return super().available and bool(self._options())
+
+    async def async_select_option(self, option: str) -> None:
+        """Activate the selected weekly schedule."""
+        plan_id = self._options().get(option)
+        if plan_id is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="plan_unknown"
+            )
+        if option == self.current_option:
+            return
+        await self.coordinator.async_set_active_week_plan(plan_id)

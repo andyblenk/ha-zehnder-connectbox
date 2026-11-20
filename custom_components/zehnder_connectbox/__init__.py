@@ -7,17 +7,21 @@ from uuid import UUID
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.typing import ConfigType
 
 from .client import ConnectBoxClient
 from .const import (
     CONF_APP_UUID,
     CONF_CERTIFICATE_SHA256,
     CONF_GATEWAY_UUID,
+    DOMAIN,
 )
 from .coordinator import ZehnderConnectBoxCoordinator
 
 PLATFORMS = (
     Platform.BUTTON,
+    Platform.DATETIME,
     Platform.FAN,
     Platform.NUMBER,
     Platform.SELECT,
@@ -27,6 +31,15 @@ PLATFORMS = (
 )
 
 type ZehnderConnectBoxConfigEntry = ConfigEntry[ZehnderConnectBoxCoordinator]
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Register the schedule services."""
+    from .services import async_setup_services
+
+    async_setup_services(hass)
+    return True
 
 
 async def async_setup_entry(

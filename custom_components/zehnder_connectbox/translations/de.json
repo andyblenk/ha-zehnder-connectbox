@@ -124,6 +124,9 @@
           "off": "Nicht verfügbar",
           "on": "Verfügbar"
         }
+      },
+      "absence_active": {
+        "name": "Abwesenheit läuft"
       }
     },
     "fan": {
@@ -213,6 +216,9 @@
           "supply": "Zuluft",
           "exhaust": "Abluft"
         }
+      },
+      "active_week_plan": {
+        "name": "Aktiver Wochenplan"
       }
     },
     "sensor": {
@@ -335,6 +341,12 @@
       },
       "error_log": {
         "name": "Fehlerprotokoll"
+      },
+      "day_plan": {
+        "name": "Tagesplan"
+      },
+      "week_plan": {
+        "name": "Wochenplan"
       }
     },
     "switch": {
@@ -349,6 +361,23 @@
       },
       "boost": {
         "name": "Stoßlüftung"
+      },
+      "absence_planner": {
+        "name": "Abwesenheitsplaner"
+      },
+      "presence": {
+        "name": "Daheim",
+        "state_attributes": {
+          "source": {
+            "name": "Quelle",
+            "state": {
+              "schedule": "Zeitplan",
+              "user": "Vom Benutzer geändert",
+              "no_schedule": "Kein Zeitplan",
+              "presence_home": "Auf Daheim geschaltet"
+            }
+          }
+        }
       }
     },
     "number": {
@@ -360,6 +389,14 @@
       },
       "level_one_runtime": {
         "name": "Betriebszeit Lüfterstufe 1/Stunde"
+      }
+    },
+    "datetime": {
+      "absence_start": {
+        "name": "Abwesenheit Beginn"
+      },
+      "absence_end": {
+        "name": "Abwesenheit Ende"
       }
     }
   },
@@ -468,6 +505,138 @@
     },
     "cannot_connect": {
       "message": "Die Kommunikation mit der ConnectBox ist fehlgeschlagen. Prüfe die Verbindung und den tatsächlichen Gerätezustand vor einem erneuten Versuch."
+    },
+    "week_plan_unknown": {
+      "message": "Die ConnectBox kennt diesen Wochenplan nicht. Aktualisiere die Integration."
+    },
+    "absence_period_missing": {
+      "message": "Lege zuerst Beginn und Ende der Abwesenheit fest."
+    },
+    "absence_period_invalid": {
+      "message": "Die Abwesenheit muss nach ihrem Beginn enden."
+    },
+    "absence_period_past": {
+      "message": "Die Abwesenheit muss in der Zukunft enden."
+    },
+    "plan_locked": {
+      "message": "Eine andere App bearbeitet diesen Plan gerade. Versuche es erneut, sobald er dort gespeichert ist."
+    },
+    "plan_unknown": {
+      "message": "Die ConnectBox kennt diesen Plan nicht. Gib Namen oder ID eines Plans an, wie sie der Wochenplan-Sensor zeigt."
+    },
+    "plan_ambiguous": {
+      "message": "Mehrere Pläne haben diesen Namen. Gib stattdessen die ID des Plans an."
+    },
+    "plan_active": {
+      "message": "Der aktive Wochenplan kann nicht gelöscht werden. Aktiviere zuerst einen anderen."
+    },
+    "plan_in_use": {
+      "message": "Ein Wochenplan verwendet diesen Tagesplan noch. Ändere zuerst den Wochenplan."
+    },
+    "schedules_unavailable": {
+      "message": "Die Pläne liegen von der ConnectBox noch nicht vor. Versuche es nach der nächsten Aktualisierung erneut."
+    },
+    "day_plan_incomplete": {
+      "message": "Ein neuer Tagesplan braucht einen Namen und seine Schaltzeiten."
+    },
+    "week_plan_incomplete": {
+      "message": "Ein neuer Wochenplan braucht einen Namen und seine Tagespläne."
+    },
+    "invalid_day_plan_slots": {
+      "message": "Ein Tagesplan braucht Schaltzeiten innerhalb des Tages, jede nur einmal, eine davon um 00:00."
+    },
+    "invalid_week_plan_days": {
+      "message": "Gib für jeden Tag einen Tagesplan an oder einen für die ganze Woche."
+    },
+    "function_room_invalid": {
+      "message": "Eine Stoßlüftung braucht einen Raum, dessen Lüftungsgerät die Stoßlüftung anbietet."
+    },
+    "config_entry_required": {
+      "message": "Es sind mehrere ConnectBoxen eingerichtet. Wähle die zu ändernde aus."
+    },
+    "not_loaded": {
+      "message": "Die ConnectBox ist nicht geladen."
+    },
+    "presence_needs_schedule": {
+      "message": "Daheim und Abwesend lassen sich so nur umschalten, während der Zeitplan läuft (Automatikbetrieb)."
+    }
+  },
+  "services": {
+    "save_day_plan": {
+      "name": "Tagesplan speichern",
+      "description": "Legt einen Tagesplan an oder ändert einen, wie auf der Seite Pläne der App. Weggelassene Teile bleiben unverändert.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "Die zu ändernde ConnectBox; nur bei mehreren nötig."
+        },
+        "plan": {
+          "name": "Plan",
+          "description": "Name oder ID des zu ändernden Tagesplans. Weglassen, um einen neuen anzulegen."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name des Plans (bis 32 Bytes)."
+        },
+        "slots": {
+          "name": "Schaltzeiten",
+          "description": "Liste aus {start: HH:MM, situation: awake (Daheim), asleep (Schlafen) oder away (Abwesend)}; eine davon um 00:00."
+        },
+        "functions": {
+          "name": "Funktionen",
+          "description": "Liste aus {start: HH:MM, function: boost (Stoßlüftung) oder summer_ventilation (Sommerlüftung), duration_minutes, room}; der Raum (Name oder ID) wird für eine Stoßlüftung gebraucht. Eine leere Liste entfernt alle Funktionen."
+        }
+      }
+    },
+    "remove_day_plan": {
+      "name": "Tagesplan löschen",
+      "description": "Löscht einen Tagesplan, den kein Wochenplan verwendet.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "Die zu ändernde ConnectBox; nur bei mehreren nötig."
+        },
+        "plan": {
+          "name": "Plan",
+          "description": "Name oder ID des Tagesplans."
+        }
+      }
+    },
+    "save_week_plan": {
+      "name": "Wochenplan speichern",
+      "description": "Legt einen Wochenplan an oder ändert einen. Weggelassene Teile bleiben unverändert.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "Die zu ändernde ConnectBox; nur bei mehreren nötig."
+        },
+        "plan": {
+          "name": "Plan",
+          "description": "Name oder ID des zu ändernden Wochenplans. Weglassen, um einen neuen anzulegen."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name des Plans (bis 32 Bytes)."
+        },
+        "days": {
+          "name": "Tage",
+          "description": "Tagespläne (Name oder ID) für Montag bis Sonntag, oder einer für die ganze Woche."
+        }
+      }
+    },
+    "remove_week_plan": {
+      "name": "Wochenplan löschen",
+      "description": "Löscht einen Wochenplan, der nicht aktiv ist.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "Die zu ändernde ConnectBox; nur bei mehreren nötig."
+        },
+        "plan": {
+          "name": "Plan",
+          "description": "Name oder ID des Wochenplans."
+        }
+      }
     }
   }
 }

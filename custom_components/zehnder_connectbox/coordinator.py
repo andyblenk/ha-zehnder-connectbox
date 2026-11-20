@@ -31,7 +31,14 @@ from .const import (
     PROPERTY_REFRESH_INTERVAL,
 )
 from .errors import CommandValidationError
-from .models import GatewaySnapshot, RunMode
+from .models import (
+    DayPlan,
+    GatewaySnapshot,
+    RunMode,
+    ScheduledFunction,
+    Schedules,
+    WeekPlan,
+)
 from .profiles import (
     FILTER_RUNTIME,
     format_version,
@@ -49,6 +56,9 @@ _SUPPORTS_VIA_DEVICE_ID = (
     in inspect.signature(dr.DeviceRegistry.async_get_or_create).parameters
 )
 MAX_RETRY_INTERVAL = 300
+# The app suggests a period of one day when the absence planner is switched on.
+ABSENCE_DEFAULT_DURATION = 24 * 60 * 60
+MINUTES_PER_DAY = 24 * 60
 
 
 def _via_gateway(gateway_uuid: str, gateway_device_id: str) -> dict[str, object]:
@@ -60,6 +70,23 @@ def _via_gateway(gateway_uuid: str, gateway_device_id: str) -> dict[str, object]
     if _SUPPORTS_VIA_DEVICE_ID:
         return {"via_device_id": gateway_device_id}
     return {"via_device": (DOMAIN, gateway_uuid)}
+
+
+def _validate_slots(slots: tuple[tuple[int, int], ...]) -> None:
+    """Require switching times within the day, one of them at midnight.
+
+    Every daily schedule of the app starts at 00:00.
+    """
+    starts = [minute for minute, _mode in slots]
+    if (
+        not starts
+        or 0 not in starts
+        or len(set(starts)) != len(starts)
+        or any(not 0 <= minute < MINUTES_PER_DAY for minute in starts)
+    ):
+        raise ServiceValidationError(
+            translation_domain=DOMAIN, translation_key="invalid_day_plan_slots"
+        )
 
 
 class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
@@ -85,6 +112,10 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         self._failures = 0
         self._last_non_off_mode = RunMode.MANUAL
         self._io_lock = asyncio.Lock()
+        # Absence period chosen while the planner is off, as Unix time. It is
+        # written when the planner is switched on. Not stored.
+        self.pending_absence_start: int | None = None
+        self.pending_absence_end: int | None = None
 
     async def _async_update_data(self) -> GatewaySnapshot:
         now = time.monotonic()
@@ -106,6 +137,7 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
                             refresh_properties or refresh_filter_properties
                         ),
                         refresh_filter_properties=refresh_filter_properties,
+                        refresh_schedules=True,
                     )
                 )
         except CertificateMismatchError as err:
@@ -256,14 +288,164 @@ class ZehnderConnectBoxCoordinator(DataUpdateCoordinator[GatewaySnapshot]):
         )
         self._accept_command_snapshot(snapshot)
 
+    async def async_set_active_week_plan(self, plan_id: int) -> None:
+        """Make a weekly schedule the active one and confirm it."""
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_active_week_plan, plan_id)
+        )
+        self._accept_command_snapshot(snapshot)
+
+    def absence_period(self) -> tuple[int | None, int | None]:
+        """Return the saved period while the planner is on, else the chosen one."""
+        run_state = self.data.run_state if self.data is not None else None
+        if run_state is not None and run_state.absence_planned:
+            return run_state.standby_start, run_state.standby_end
+        return self.pending_absence_start, self.pending_absence_end
+
+    async def async_set_absence(self, enabled: bool) -> None:
+        """Switch the absence planner on for the chosen period, or off.
+
+        Without a chosen period the planner starts now and ends a day later,
+        as the app suggests when the planner is switched on.
+        """
+        start, end = self.absence_period()
+        if enabled:
+            if start is None:
+                start = int(time.time()) // 60 * 60
+            if end is None:
+                end = start + ABSENCE_DEFAULT_DURATION
+            command = partial(self.client.set_absence, True, start, end)
+        else:
+            command = partial(self.client.set_absence, False)
+        snapshot = await self._async_execute_command(command)
+        if enabled:
+            self.pending_absence_start = self.pending_absence_end = None
+        else:
+            # Offer the period again when the planner is switched back on.
+            self.pending_absence_start, self.pending_absence_end = start, end
+        self._accept_command_snapshot(snapshot)
+
+    async def async_set_absence_period(
+        self, *, start: int | None = None, end: int | None = None
+    ) -> None:
+        """Change the period; written right away while the planner is on."""
+        run_state = self.data.run_state if self.data is not None else None
+        if run_state is None or not run_state.absence_planned:
+            if start is not None:
+                self.pending_absence_start = start
+            if end is not None:
+                self.pending_absence_end = end
+            self.async_update_listeners()
+            return
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_absence, True, start, end)
+        )
+        self._accept_command_snapshot(snapshot)
+
+    def _schedules(self) -> Schedules:
+        schedules = self.data.schedules if self.data is not None else None
+        if schedules is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="schedules_unavailable"
+            )
+        return schedules
+
+    async def async_save_day_plan(
+        self,
+        plan_id: int | None,
+        name: str | None,
+        slots: tuple[tuple[int, int], ...] | None,
+        functions: tuple[ScheduledFunction, ...] | None,
+    ) -> int:
+        """Add or change a daily schedule; unchanged parts are kept."""
+        schedules = self._schedules()
+        if plan_id is not None:
+            existing = schedules.day_plan(plan_id)
+            if existing is None:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN, translation_key="plan_unknown"
+                )
+            name = name if name is not None else existing.name
+            slots = slots if slots is not None else existing.slots
+            functions = functions if functions is not None else existing.functions
+        elif not name or slots is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="day_plan_incomplete"
+            )
+        _validate_slots(slots)
+        plan = DayPlan(plan_id or 0, name, slots, functions or ())
+        return await self._async_save(partial(self.client.save_day_plan, plan))
+
+    async def async_save_week_plan(
+        self, plan_id: int | None, name: str | None, days: tuple[int, ...] | None
+    ) -> int:
+        """Add or change a weekly schedule; unchanged parts are kept."""
+        schedules = self._schedules()
+        if plan_id is not None:
+            existing = schedules.week_plan(plan_id)
+            if existing is None:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN, translation_key="plan_unknown"
+                )
+            name = name if name is not None else existing.name
+            days = days if days is not None else existing.days
+        elif not name or days is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="week_plan_incomplete"
+            )
+        if any(schedules.day_plan(day) is None for day in days):
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="plan_unknown"
+            )
+        plan = WeekPlan(plan_id or 0, name, tuple(days))
+        return await self._async_save(partial(self.client.save_week_plan, plan))
+
+    async def async_remove_plan(self, plan_id: int, *, week: bool) -> None:
+        """Remove a schedule that is neither active nor used by another one."""
+        schedules = self._schedules()
+        if week:
+            if schedules.week_plan(plan_id) is None:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN, translation_key="plan_unknown"
+                )
+            if self.data.run_state.week_plan == plan_id:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN, translation_key="plan_active"
+                )
+        else:
+            if schedules.day_plan(plan_id) is None:
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN, translation_key="plan_unknown"
+                )
+            if any(plan_id in item.days for item in schedules.week_plans):
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN, translation_key="plan_in_use"
+                )
+        snapshot = await self._async_execute_command(
+            partial(self.client.remove_plan, plan_id, week=week)
+        )
+        self._accept_command_snapshot(snapshot)
+
+    async def _async_save(
+        self, command: Callable[[], tuple[GatewaySnapshot, int]]
+    ) -> int:
+        snapshot, plan_id = await self._async_execute_command(command)
+        self._accept_command_snapshot(snapshot)
+        return plan_id
+
+    async def async_set_presence(self, home: bool) -> None:
+        """Switch between at home and away while the schedule keeps running."""
+        snapshot = await self._async_execute_command(
+            partial(self.client.set_presence, home)
+        )
+        self._accept_command_snapshot(snapshot)
+
     async def async_close(self) -> None:
         """Close the client outside Home Assistant's event loop."""
         async with self._io_lock:
             await self.hass.async_add_executor_job(self.client.close)
 
-    async def _async_execute_command(
-        self, command: Callable[[], GatewaySnapshot]
-    ) -> GatewaySnapshot:
+    async def _async_execute_command[T](self, command: Callable[[], T]) -> T:
         """Serialize commands and translate expected failures at the HA boundary."""
         try:
             async with self._io_lock:

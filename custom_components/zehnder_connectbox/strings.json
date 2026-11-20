@@ -124,6 +124,9 @@
           "off": "Not available",
           "on": "Available"
         }
+      },
+      "absence_active": {
+        "name": "Absence running"
       }
     },
     "fan": {
@@ -213,6 +216,9 @@
           "supply": "Supply",
           "exhaust": "Exhaust"
         }
+      },
+      "active_week_plan": {
+        "name": "Active weekly schedule"
       }
     },
     "sensor": {
@@ -335,6 +341,12 @@
       },
       "error_log": {
         "name": "Error log"
+      },
+      "day_plan": {
+        "name": "Daily schedule"
+      },
+      "week_plan": {
+        "name": "Weekly schedule"
       }
     },
     "switch": {
@@ -349,6 +361,23 @@
       },
       "boost": {
         "name": "Boost"
+      },
+      "absence_planner": {
+        "name": "Absence planner"
+      },
+      "presence": {
+        "name": "At home",
+        "state_attributes": {
+          "source": {
+            "name": "Source",
+            "state": {
+              "schedule": "Schedule",
+              "user": "Changed by user",
+              "no_schedule": "No schedule",
+              "presence_home": "Switched to at home"
+            }
+          }
+        }
       }
     },
     "number": {
@@ -360,6 +389,14 @@
       },
       "level_one_runtime": {
         "name": "Level 1 runtime per hour"
+      }
+    },
+    "datetime": {
+      "absence_start": {
+        "name": "Absence start"
+      },
+      "absence_end": {
+        "name": "Absence end"
       }
     }
   },
@@ -468,6 +505,138 @@
     },
     "cannot_connect": {
       "message": "Communication with the ConnectBox failed. Check the connection and the actual device state before trying again."
+    },
+    "week_plan_unknown": {
+      "message": "The ConnectBox does not list this weekly schedule. Refresh the integration."
+    },
+    "absence_period_missing": {
+      "message": "Set the start and end of the absence first."
+    },
+    "absence_period_invalid": {
+      "message": "The absence must end after it starts."
+    },
+    "absence_period_past": {
+      "message": "The absence must end in the future."
+    },
+    "plan_locked": {
+      "message": "Another app is editing this schedule. Try again once it is saved there."
+    },
+    "plan_unknown": {
+      "message": "The ConnectBox does not list this schedule. Use a schedule's name or ID as shown in the weekly schedule sensor."
+    },
+    "plan_ambiguous": {
+      "message": "Several schedules have this name. Use the schedule's ID instead."
+    },
+    "plan_active": {
+      "message": "The active weekly schedule cannot be removed. Activate another one first."
+    },
+    "plan_in_use": {
+      "message": "A weekly schedule still uses this daily schedule. Change the weekly schedule first."
+    },
+    "schedules_unavailable": {
+      "message": "The schedules are not available from the ConnectBox yet. Try again after the next update."
+    },
+    "day_plan_incomplete": {
+      "message": "A new daily schedule needs a name and its switching times."
+    },
+    "week_plan_incomplete": {
+      "message": "A new weekly schedule needs a name and its daily schedules."
+    },
+    "invalid_day_plan_slots": {
+      "message": "A daily schedule needs switching times within the day, each only once, one of them at 00:00."
+    },
+    "invalid_week_plan_days": {
+      "message": "Give one daily schedule for every day, or one for the whole week."
+    },
+    "function_room_invalid": {
+      "message": "A boost needs a room whose ventilation unit offers the boost."
+    },
+    "config_entry_required": {
+      "message": "Several ConnectBoxes are set up. Select the one to change."
+    },
+    "not_loaded": {
+      "message": "The ConnectBox is not loaded."
+    },
+    "presence_needs_schedule": {
+      "message": "At home and away can only be switched this way while the schedule runs (automatic mode)."
+    }
+  },
+  "services": {
+    "save_day_plan": {
+      "name": "Save daily schedule",
+      "description": "Adds a daily schedule or changes one, as on the app's plan page. Parts that are left out stay as they are.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "The ConnectBox to change; only needed with several."
+        },
+        "plan": {
+          "name": "Schedule",
+          "description": "Name or ID of the daily schedule to change. Leave out to add a new one."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name of the schedule (up to 32 bytes)."
+        },
+        "slots": {
+          "name": "Switching times",
+          "description": "List of {start: HH:MM, situation: awake, asleep or away}; one of them at 00:00."
+        },
+        "functions": {
+          "name": "Functions",
+          "description": "List of {start: HH:MM, function: boost or summer_ventilation, duration_minutes, room}; the room (name or ID) is needed for a boost. An empty list removes all functions."
+        }
+      }
+    },
+    "remove_day_plan": {
+      "name": "Remove daily schedule",
+      "description": "Removes a daily schedule that no weekly schedule uses.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "The ConnectBox to change; only needed with several."
+        },
+        "plan": {
+          "name": "Schedule",
+          "description": "Name or ID of the daily schedule."
+        }
+      }
+    },
+    "save_week_plan": {
+      "name": "Save weekly schedule",
+      "description": "Adds a weekly schedule or changes one. Parts that are left out stay as they are.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "The ConnectBox to change; only needed with several."
+        },
+        "plan": {
+          "name": "Schedule",
+          "description": "Name or ID of the weekly schedule to change. Leave out to add a new one."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Name of the schedule (up to 32 bytes)."
+        },
+        "days": {
+          "name": "Days",
+          "description": "Daily schedules (name or ID) for Monday to Sunday, or one for the whole week."
+        }
+      }
+    },
+    "remove_week_plan": {
+      "name": "Remove weekly schedule",
+      "description": "Removes a weekly schedule that is not active.",
+      "fields": {
+        "config_entry_id": {
+          "name": "ConnectBox",
+          "description": "The ConnectBox to change; only needed with several."
+        },
+        "plan": {
+          "name": "Schedule",
+          "description": "Name or ID of the weekly schedule."
+        }
+      }
     }
   }
 }

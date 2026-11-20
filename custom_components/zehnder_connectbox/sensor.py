@@ -26,10 +26,13 @@ from . import ZehnderConnectBoxConfigEntry
 from .const import CONF_GATEWAY_UUID
 from .entity import (
     ConnectBoxDeviceEntity,
+    ConnectBoxGatewayEntity,
     supported_device_ids,
 )
 from .models import (
     AttachedDevice,
+    DayPlan,
+    GatewaySnapshot,
     Room,
 )
 from .profiles import (
@@ -61,6 +64,7 @@ from .status import (
     error_codes,
     fan_status,
     situation,
+    situation_name,
 )
 
 try:
@@ -299,6 +303,21 @@ async def async_setup_entry(
                         ConnectBoxSensor(coordinator, device.device_id, description)
                     )
                     known.add(identity)
+        # Today's daily schedule, once the gateway reports one.
+        if (
+            0,
+            "day_plan",
+        ) not in known and coordinator.data.run_state.day_plan is not None:
+            new_entities.append(ConnectBoxDayPlanSensor(coordinator))
+            known.add((0, "day_plan"))
+        # The active weekly schedule, once the gateway reports the schedules.
+        if (
+            (0, "week_plan") not in known
+            and coordinator.data.schedules is not None
+            and coordinator.data.run_state.week_plan is not None
+        ):
+            new_entities.append(ConnectBoxWeekPlanSensor(coordinator))
+            known.add((0, "week_plan"))
         if new_entities:
             async_add_entities(new_entities)
 
@@ -400,4 +419,155 @@ class ConnectBoxFanStatusSensor(ConnectBoxDeviceEntity, SensorEntity):
     @property
     def available(self) -> bool:
         """Report unavailable while the status cannot be determined."""
+        return super().available and self.native_value is not None
+
+
+def _plan_slots(day_plan: DayPlan) -> list[dict[str, str | None]]:
+    """Return the plan's switching times with their situation."""
+    return [
+        {"start": _clock(minute), "situation": situation_name(mode)}
+        for minute, mode in day_plan.slots
+    ]
+
+
+class ConnectBoxDayPlanSensor(ConnectBoxGatewayEntity, SensorEntity):
+    """Today's daily schedule of the active weekly schedule.
+
+    The state is the plan's name as set in the app; the attributes list its
+    switching times with the situation and the active weekly schedule.
+    """
+
+    _attr_translation_key = "day_plan"
+    _attr_icon = "mdi:calendar-clock"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_day_plan"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the name of today's plan."""
+        snapshot = self.coordinator.data
+        plan = snapshot.run_state.day_plan if snapshot is not None else None
+        if plan is None:
+            return None
+        return plan.name or str(plan.plan_id)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """Return the switching times and the plan numbers."""
+        snapshot = self.coordinator.data
+        plan = snapshot.run_state.day_plan if snapshot is not None else None
+        if plan is None:
+            return None
+        attributes: dict[str, object] = {
+            "day_plan": plan.plan_id,
+            "week_plan": snapshot.run_state.week_plan,
+            "slots": _plan_slots(plan),
+        }
+        # The run state leaves out the plan's timed functions.
+        listed = (
+            snapshot.schedules.day_plan(plan.plan_id)
+            if snapshot.schedules is not None
+            else None
+        )
+        if listed is not None:
+            attributes["functions"] = _plan_functions(listed, snapshot)
+        return attributes
+
+    @property
+    def available(self) -> bool:
+        """Report unavailable while no plan is reported."""
+        return super().available and self.native_value is not None
+
+
+SCHEDULED_FUNCTIONS = {2: "boost", 5: "summer_ventilation"}
+
+
+def _clock(minute: int) -> str:
+    return f"{minute // 60:02d}:{minute % 60:02d}"
+
+
+def _plan_functions(
+    day_plan: DayPlan, snapshot: GatewaySnapshot
+) -> list[dict[str, object]]:
+    """Return the plan's timed functions with the room they apply to."""
+    rooms = {room.room_id: room.name for room in snapshot.rooms}
+    return [
+        {
+            "start": _clock(item.start_minute),
+            "function": SCHEDULED_FUNCTIONS.get(item.function, item.function),
+            "duration_minutes": item.duration_minutes,
+            "room": rooms.get(item.room_id) if item.room_id else None,
+        }
+        for item in day_plan.functions
+    ]
+
+
+class ConnectBoxWeekPlanSensor(ConnectBoxGatewayEntity, SensorEntity):
+    """The active weekly schedule and all schedules stored on the gateway.
+
+    The state is the name of the active weekly schedule as set in the app.
+    The attributes list the daily schedule of each of its seven days, and
+    all weekly and daily schedules with their switching times and functions.
+    """
+
+    _attr_translation_key = "week_plan"
+    _attr_icon = "mdi:calendar-week"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator)
+        gateway_uuid = coordinator.entry.data[CONF_GATEWAY_UUID]
+        self._attr_unique_id = f"{gateway_uuid}_week_plan"
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the name of the active weekly schedule."""
+        snapshot = self.coordinator.data
+        if snapshot is None or snapshot.schedules is None:
+            return None
+        plan = snapshot.schedules.week_plan(snapshot.run_state.week_plan)
+        if plan is None:
+            return None
+        return plan.name or str(plan.plan_id)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """Return the active plan's days and all stored schedules."""
+        snapshot = self.coordinator.data
+        if snapshot is None or snapshot.schedules is None:
+            return None
+        schedules = snapshot.schedules
+
+        def day_name(plan_id: int) -> str | None:
+            plan = schedules.day_plan(plan_id)
+            return (plan.name or str(plan.plan_id)) if plan is not None else None
+
+        active = schedules.week_plan(snapshot.run_state.week_plan)
+        return {
+            "week_plan": snapshot.run_state.week_plan,
+            "days": [day_name(plan_id) for plan_id in active.days] if active else None,
+            "week_plans": [
+                {
+                    "id": plan.plan_id,
+                    "name": plan.name,
+                    "days": [day_name(plan_id) for plan_id in plan.days],
+                }
+                for plan in schedules.week_plans
+            ],
+            "day_plans": [
+                {
+                    "id": plan.plan_id,
+                    "name": plan.name,
+                    "slots": _plan_slots(plan),
+                    "functions": _plan_functions(plan, snapshot),
+                }
+                for plan in schedules.day_plans
+            ],
+        }
+
+    @property
+    def available(self) -> bool:
+        """Report unavailable while the active schedule is not known."""
         return super().available and self.native_value is not None

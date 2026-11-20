@@ -66,8 +66,13 @@ def fan_status(
 
 def situation(run_state: RunState) -> str | None:
     """Return the active situation as a translation key."""
+    return situation_name(run_state.temperature_mode)
+
+
+def situation_name(temperature_mode: int) -> str | None:
+    """Return a situation's translation key."""
     try:
-        return SITUATIONS[TemperatureMode(run_state.temperature_mode)]
+        return SITUATIONS[TemperatureMode(temperature_mode)]
     except ValueError:
         return None
 

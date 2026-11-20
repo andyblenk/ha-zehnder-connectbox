@@ -62,10 +62,10 @@ with sanitized integration diagnostics.
 - One Home Assistant gateway device for each ConnectBox
 - Separate Home Assistant devices for supported connected ventilation units
 - Automatic detection of supported units linked later in the official app
-- Native fan, switch, select, number, sensor, binary-sensor, and button
-  entities
-- The functions of the official app's unit pages: boost, summer ventilation
-  and unit settings
+- Native fan, switch, select, number, date-and-time, sensor, binary-sensor,
+  and button entities
+- The functions of the official app's pages: schedules, absence planner,
+  boost, summer ventilation and unit settings
 - Local polling, automatic reconnect, and privacy-preserving diagnostics
 - Multiple ConnectBoxes as separate Home Assistant config entries
 
@@ -112,9 +112,43 @@ summer ventilation role sensor.
 The ConnectBox firmware version is shown in its Home Assistant device
 information when reported by the gateway.
 
-Schedules, the absence planner, Wi-Fi setup, pairing and removing apps or
-units, rooms, system settings, the history, push notifications, the firmware
-update and the service partner access stay in the official app.
+#### Schedules and absence planner
+
+These entities follow the pages of the official app. They appear once the
+ConnectBox reports the matching data.
+
+| Entity | Home Assistant type | Function |
+| --- | --- | --- |
+| Weekly schedule / Daily schedule | Sensor | Active weekly schedule with all stored schedules, and today's daily schedule with its switching times and timed functions |
+| Active weekly schedule | Select | Makes a stored weekly schedule the active one |
+| At home | Switch | Switches between at home and away while the schedule keeps running, like the house on the app's start screen; selecting a situation instead switches to the manual mode |
+| Absence planner | Switch | Saves or switches off the app's absence planner; the system runs in frost protection during the period |
+| Absence start / Absence end | Date and time | Period of the absence planner; while the planner is off, the period is kept until it is switched on |
+| Absence running | Binary sensor | On while the absence period runs |
+
+The services `zehnder_connectbox.save_day_plan`, `remove_day_plan`,
+`save_week_plan` and `remove_week_plan` add, change and remove schedules.
+Schedules are referred to by name or ID; parts left out of a change stay as
+they are. A daily schedule switches between `awake`, `asleep` and `away` and
+needs a switching time at 00:00. Timed functions are `boost` (for a room whose
+unit offers it) and `summer_ventilation`. A weekly schedule lists the daily
+schedules from Monday to Sunday, or one for the whole week.
+
+```yaml
+action: zehnder_connectbox.save_day_plan
+data:
+  name: Home office
+  slots:
+    - {start: "00:00", situation: asleep}
+    - {start: "07:00", situation: awake}
+    - {start: "22:30", situation: asleep}
+  functions:
+    - {start: "07:00", function: boost, duration_minutes: 15, room: Office}
+```
+
+Wi-Fi setup, pairing and removing apps or units, rooms, system settings, the
+history, push notifications, the firmware update and the service partner access
+stay in the official app.
 
 ### Supported ventilation unit
 

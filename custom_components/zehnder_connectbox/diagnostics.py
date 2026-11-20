@@ -73,6 +73,10 @@ async def async_get_config_entry_diagnostics(
             "run_mode": run_mode,
             "temperature_mode": snapshot.run_state.temperature_mode,
             "standby": snapshot.run_state.standby,
+            "situation_source": snapshot.run_state.situation_source,
+            "absence_planned": snapshot.run_state.absence_planned,
+            "absence_start": snapshot.run_state.standby_start,
+            "absence_end": snapshot.run_state.standby_end,
             "summer_ventilation_active": snapshot.run_state.summer_ventilation,
             "summer_ventilation_enabled": (
                 snapshot.summer_ventilation_settings.enabled
@@ -82,6 +86,17 @@ async def async_get_config_entry_diagnostics(
             "summer_ventilation_duration_hours": (
                 snapshot.summer_ventilation_settings.duration_hours
                 if snapshot.summer_ventilation_settings is not None
+                else None
+            ),
+            "week_plan": snapshot.run_state.week_plan,
+            "week_plan_count": (
+                len(snapshot.schedules.week_plans)
+                if snapshot.schedules is not None
+                else None
+            ),
+            "day_plan_count": (
+                len(snapshot.schedules.day_plans)
+                if snapshot.schedules is not None
                 else None
             ),
             "room_count": len(snapshot.rooms),

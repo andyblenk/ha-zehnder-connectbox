@@ -19,6 +19,14 @@ project follows [Semantic Versioning](https://semver.org/).
   level 1 per hour and the summer ventilation role of a unit, and show its
   bath function, automatic operation sensors and error log, as on the unit's
   page in the official app (ComfoSpot 50).
+- Select the active weekly schedule, as on the app's plan page, and show the
+  active weekly and daily schedule.
+- Add the app's absence planner: a switch with start and end, and an
+  indicator while the absence runs.
+- Add services to add, change and remove daily schedules (switching times
+  and timed boost or summer ventilation) and weekly schedules.
+- Switch between at home and away while the schedule keeps running, like the
+  house on the app's start screen.
 
 ### Changed
 
